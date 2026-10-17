@@ -3,6 +3,7 @@ name: Publikacja na GitHub Pages
 on:
   push:
     branches: [main, claude/focused-hamilton-ocf757]
+    paths-ignore: ["ios/**", ".github/workflows/ios.yml"]
   workflow_dispatch:
 
 permissions:
