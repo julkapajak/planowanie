@@ -2,6 +2,27 @@
 
 Aplikacja w SwiftUI (iOS 17+).
 
+## Uruchomienie z Terminala
+
+Pierwszy raz:
+
+```bash
+git clone -b claude/focused-hamilton-ocf757 https://github.com/julkapajak/planowanie.git
+cd planowanie
+ios/run.sh
+```
+
+Każdy kolejny raz (pobiera najnowsze zmiany i uruchamia):
+
+```bash
+cd planowanie
+git pull
+ios/run.sh
+```
+
+Skrypt otwiera projekt w Xcode, włącza symulator iPhone'a, buduje aplikację i ją uruchamia.
+Konkretny model wybierzesz tak: `ios/run.sh "iPhone 16 Pro"`.
+
 ## Uruchomienie na symulatorze (bez Terminala)
 
 1. Pobierz projekt jako ZIP:
