@@ -24,6 +24,27 @@ struct ContentView: View {
     @State private var selected = Day.today
 
     var body: some View {
+        Group {
+            if store.active == nil {
+                ProfileEditor(isOnboarding: true)
+            } else {
+                tabs
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { store.refreshNotifications() }
+        }
+        #if targetEnvironment(macCatalyst)
+        .onAppear {
+            // Na Macu: rozsądny rozmiar okna, jak wysoki notes.
+            for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+                scene.sizeRestrictions?.minimumSize = CGSize(width: 420, height: 640)
+            }
+        }
+        #endif
+    }
+
+    private var tabs: some View {
         TabView(selection: $tab) {
             DayView(selected: $selected)
                 .tabItem { Label("Dzień", systemImage: "sun.max.fill") }
@@ -38,16 +59,5 @@ struct ContentView: View {
                 .tabItem { Label("Ustawienia", systemImage: "gearshape.fill") }
                 .tag(2)
         }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { store.refreshNotifications() }
-        }
-        #if targetEnvironment(macCatalyst)
-        .onAppear {
-            // Na Macu: rozsądny rozmiar okna, jak wysoki notes.
-            for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
-                scene.sizeRestrictions?.minimumSize = CGSize(width: 420, height: 640)
-            }
-        }
-        #endif
     }
 }

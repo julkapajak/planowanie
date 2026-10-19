@@ -1,35 +1,108 @@
 import Foundation
 
-/// Wszystkie zadania, zapisywane jako JSON w katalogu aplikacji.
+/// Profile i zadania aktywnego profilu, zapisywane jako JSON w katalogu aplikacji:
+/// `profiles.json` oraz osobny `tasks-<id profilu>.json` dla każdego profilu.
 final class Store: ObservableObject {
     static let shared = Store()
 
+    @Published private(set) var profiles: [Profile]
+    @Published private(set) var activeID: String?
     @Published private(set) var tasks: [TaskItem] {
         didSet {
-            save()
-            NotificationManager.shared.reschedule(tasks)
+            saveTasks()
+            refreshNotifications()
         }
     }
 
-    private static var fileURL: URL {
+    var active: Profile? { profiles.first { $0.id == activeID } }
+
+    private static let activeKey = "activeProfile"
+
+    private static let dir: URL = {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("tasks.json")
+        return dir
+    }()
+    private static var profilesURL: URL { dir.appendingPathComponent("profiles.json") }
+    /// Plik z wersji bez profili – przy pierwszym profilu przenosimy z niego plan.
+    private static var legacyURL: URL { dir.appendingPathComponent("tasks.json") }
+    private static func tasksURL(_ id: String) -> URL { dir.appendingPathComponent("tasks-\(id).json") }
+
+    private static func loadTasks(_ id: String) -> [TaskItem] {
+        loadTasks(from: tasksURL(id)) ?? []
+    }
+
+    private static func loadTasks(from url: URL) -> [TaskItem]? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode([TaskItem].self, from: data)
     }
 
     private init() {
-        if let data = try? Data(contentsOf: Store.fileURL),
-           let saved = try? JSONDecoder().decode([TaskItem].self, from: data) {
-            tasks = saved
-        } else {
-            tasks = Seed.build()
-            save()
+        let saved = (try? Data(contentsOf: Store.profilesURL))
+            .flatMap { try? JSONDecoder().decode([Profile].self, from: $0) } ?? []
+        let remembered = UserDefaults.standard.string(forKey: Store.activeKey)
+        let id = saved.contains(where: { $0.id == remembered }) ? remembered : saved.first?.id
+        profiles = saved
+        activeID = id
+        tasks = id.map { Store.loadTasks($0) } ?? []
+    }
+
+    private func saveTasks() {
+        guard let id = activeID, let data = try? JSONEncoder().encode(tasks) else { return }
+        try? data.write(to: Store.tasksURL(id), options: .atomic)
+    }
+
+    private func saveProfiles() {
+        guard let data = try? JSONEncoder().encode(profiles) else { return }
+        try? data.write(to: Store.profilesURL, options: .atomic)
+    }
+
+    // MARK: profile
+
+    /// Czy jest plan z wersji sprzed profili (zostanie przypisany do pierwszego profilu).
+    var hasLegacyPlan: Bool {
+        profiles.isEmpty && FileManager.default.fileExists(atPath: Store.legacyURL.path)
+    }
+
+    func createProfile(name: String, emoji: String, color: UInt32, withSeed: Bool) {
+        var initial = withSeed ? Seed.build() : []
+        if hasLegacyPlan, let legacy = Store.loadTasks(from: Store.legacyURL) {
+            initial = legacy
+            try? FileManager.default.removeItem(at: Store.legacyURL)
+        }
+        let p = Profile(id: UUID().uuidString, name: name, emoji: emoji, color: color)
+        profiles.append(p)
+        saveProfiles()
+        activate(p.id, tasks: initial)
+    }
+
+    func updateProfile(_ p: Profile) {
+        guard let i = profiles.firstIndex(where: { $0.id == p.id }) else { return }
+        profiles[i] = p
+        saveProfiles()
+        refreshNotifications()
+    }
+
+    func switchTo(_ id: String) {
+        guard id != activeID, profiles.contains(where: { $0.id == id }) else { return }
+        activate(id, tasks: Store.loadTasks(id))
+    }
+
+    /// Usuwa profil razem z jego planem. Po usunięciu ostatniego wraca ekran powitalny.
+    func deleteProfile(_ id: String) {
+        profiles.removeAll { $0.id == id }
+        saveProfiles()
+        try? FileManager.default.removeItem(at: Store.tasksURL(id))
+        if activeID == id {
+            let next = profiles.first?.id
+            activate(next, tasks: next.map { Store.loadTasks($0) } ?? [])
         }
     }
 
-    private func save() {
-        guard let data = try? JSONEncoder().encode(tasks) else { return }
-        try? data.write(to: Store.fileURL, options: .atomic)
+    private func activate(_ id: String?, tasks new: [TaskItem]) {
+        activeID = id
+        UserDefaults.standard.set(id, forKey: Store.activeKey)
+        tasks = new
     }
 
     // MARK: odczyt
@@ -89,7 +162,7 @@ final class Store: ObservableObject {
     }
 
     func refreshNotifications() {
-        NotificationManager.shared.reschedule(tasks)
+        NotificationManager.shared.reschedule(tasks, name: active?.name)
     }
 
     // MARK: kopia zapasowa (zgodna z wersją web: {"tasks": [...]})

@@ -14,6 +14,8 @@ struct DayView: View {
     @State private var confettiID: UUID?
     @State private var authStatus: UNAuthorizationStatus = .authorized
     @State private var hapticTrigger = 0
+    @State private var editingProfile: Profile?
+    @State private var addingProfile = false
 
     private let cheers = ["Brawo! ✨", "Jedno z głowy 💪", "Tak trzymaj!", "Pięknie idzie 🌟", "Kolejne odhaczone ✓", "Super robota!"]
 
@@ -70,10 +72,14 @@ struct DayView: View {
         let done = list.filter(\.done).count
         let pct = list.isEmpty ? 0 : Double(done) / Double(list.count)
         return HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(greeting(now))
-                    .font(Theme.rounded(.subheadline, .semibold))
-                    .foregroundStyle(Theme.muted)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    profileMenu
+                    Text(greeting(now))
+                        .font(Theme.rounded(.subheadline, .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                }
                 Text("\(relativeName(now)), \(Day.long(selected))")
                     .font(Theme.display(26))
                     .foregroundStyle(Theme.fg)
@@ -85,6 +91,30 @@ struct DayView: View {
                 .frame(width: 56, height: 56)
         }
         .padding(.top, 8)
+    }
+
+    private var profileMenu: some View {
+        Menu {
+            ForEach(store.profiles) { p in
+                Button {
+                    withAnimation(.easeInOut) { store.switchTo(p.id) }
+                } label: {
+                    if p.id == store.activeID {
+                        Label("\(p.emoji) \(p.name)", systemImage: "checkmark")
+                    } else {
+                        Text("\(p.emoji) \(p.name)")
+                    }
+                }
+            }
+            Divider()
+            Button { editingProfile = store.active } label: { Label("Edytuj profil", systemImage: "pencil") }
+            Button { addingProfile = true } label: { Label("Dodaj profil", systemImage: "person.badge.plus") }
+        } label: {
+            if let p = store.active { AvatarView(profile: p, size: 30) }
+        }
+        .accessibilityLabel("Profil: \(store.active?.name ?? ""). Zmień profil")
+        .sheet(item: $editingProfile) { p in ProfileEditor(editing: p).environmentObject(store) }
+        .sheet(isPresented: $addingProfile) { ProfileEditor().environmentObject(store) }
     }
 
     private var notifyBanner: some View {
@@ -177,12 +207,10 @@ struct DayView: View {
 
     private func greeting(_ now: Date) -> String {
         let h = Day.calendar.component(.hour, from: now)
-        switch h {
-        case ..<5: return "Dobranoc 🌙"
-        case ..<12: return "Dzień dobry ☀️"
-        case ..<18: return "Miłego popołudnia 🌤"
-        default: return "Dobry wieczór 🌙"
-        }
+        let text = h < 5 ? "Dobranoc" : h < 12 ? "Dzień dobry" : h < 18 ? "Miłego popołudnia" : "Dobry wieczór"
+        let icon = h < 5 ? "🌙" : h < 12 ? "☀️" : h < 18 ? "🌤" : "🌙"
+        let name = store.active?.name ?? ""
+        return name.isEmpty ? "\(text) \(icon)" : "\(text), \(name) \(icon)"
     }
 
     private func relativeName(_ now: Date) -> String {

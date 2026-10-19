@@ -40,16 +40,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
-    func reschedule(_ tasks: [TaskItem]) {
+    func reschedule(_ tasks: [TaskItem], name: String?) {
         pending?.cancel()
         pending = Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
-            await apply(tasks)
+            await apply(tasks, name: name)
         }
     }
 
-    private func apply(_ tasks: [TaskItem]) async {
+    private func apply(_ tasks: [TaskItem], name: String?) async {
         let old = await center.pendingNotificationRequests()
             .map(\.identifier)
             .filter { !$0.hasSuffix(snoozeSuffix) }
@@ -82,7 +82,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                 let fire = Day.date(day, minutes: Prefs.morningMinutes)
                 guard fire > now, let list = byDay[day]?.sorted(by: { $0.time < $1.time }), !list.isEmpty else { continue }
                 let c = UNMutableNotificationContent()
-                c.title = "Dzień dobry! Dziś \(list.count) \(Day.tasksWord(list.count)) ☀️"
+                let hello = name.map { "Dzień dobry, \($0)!" } ?? "Dzień dobry!"
+                c.title = "\(hello) Dziś \(list.count) \(Day.tasksWord(list.count)) ☀️"
                 c.body = list.filter { $0.cat != .food }.map { "\($0.time) \($0.shortTitle)" }.joined(separator: " · ")
                 c.sound = .default
                 c.threadIdentifier = "morning"

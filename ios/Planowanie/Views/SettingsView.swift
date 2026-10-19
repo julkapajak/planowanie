@@ -16,10 +16,15 @@ struct SettingsView: View {
     @State private var importing = false
     @State private var confirmReset = false
     @State private var message: String?
+    @State private var editingProfile: Profile?
+    @State private var addingProfile = false
+    @State private var confirmDeleteProfile = false
 
     var body: some View {
         NavigationStack {
             Form {
+                if let me = store.active { profileSection(me) }
+
                 Section {
                     Toggle("Powiadomienia", isOn: Binding(get: { notifyOn && authStatus == .authorized }, set: setNotify))
                     Picker("Ile minut wcześniej", selection: $lead) {
@@ -56,7 +61,7 @@ struct SettingsView: View {
                 } header: {
                     Text("💾 Dane")
                 } footer: {
-                    Text("Plan jest zapisany tylko na tym iPhonie.")
+                    Text("Plan jest zapisany tylko na tym iPhonie. Kopia zapasowa i przywracanie dotyczą aktywnego profilu.")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -92,6 +97,51 @@ struct SettingsView: View {
         }
         .alert(message ?? "", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("OK", role: .cancel) {}
+        }
+    }
+
+    private func profileSection(_ me: Profile) -> some View {
+        Section {
+            HStack(spacing: 12) {
+                AvatarView(profile: me, size: 44)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(me.name).font(Theme.rounded(.headline, .bold))
+                    Text("Aktywny profil").font(Theme.rounded(.caption)).foregroundStyle(Theme.muted)
+                }
+                Spacer()
+                Button("Edytuj") { editingProfile = me }
+                    .buttonStyle(.borderless)
+            }
+            .sheet(item: $editingProfile) { p in ProfileEditor(editing: p).environmentObject(store) }
+
+            ForEach(store.profiles.filter { $0.id != me.id }) { p in
+                Button {
+                    withAnimation(.easeInOut) { store.switchTo(p.id) }
+                } label: {
+                    HStack(spacing: 12) {
+                        AvatarView(profile: p, size: 32)
+                        Text(p.name).foregroundStyle(Theme.fg)
+                        Spacer()
+                        Text("Przełącz").foregroundStyle(Theme.accent)
+                    }
+                }
+            }
+
+            Button { addingProfile = true } label: {
+                Label("Dodaj profil", systemImage: "person.badge.plus")
+            }
+            .sheet(isPresented: $addingProfile) { ProfileEditor().environmentObject(store) }
+
+            Button("Usuń ten profil", role: .destructive) { confirmDeleteProfile = true }
+                .confirmationDialog("Usunąć profil „\(me.name)” razem z jego planem?", isPresented: $confirmDeleteProfile, titleVisibility: .visible) {
+                    Button("Usuń profil", role: .destructive) {
+                        withAnimation(.easeInOut) { store.deleteProfile(me.id) }
+                    }
+                }
+        } header: {
+            Text("👤 Profil")
+        } footer: {
+            Text("Każdy profil ma własny plan. Przypomnienia przychodzą dla profilu, który jest aktywny.")
         }
     }
 
