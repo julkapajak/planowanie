@@ -181,6 +181,7 @@ struct FocusView: View {
             } else {
                 Button { startTimer(5, label: "Tylko 5 minut – potem zdecydujesz", t) } label: {
                     Label("Tylko 5 minut", systemImage: "play.fill")
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -305,6 +306,7 @@ struct FocusView: View {
                     NotificationManager.shared.cancelFocusTimer()
                 } label: {
                     Label("Zrobione", systemImage: "checkmark")
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)

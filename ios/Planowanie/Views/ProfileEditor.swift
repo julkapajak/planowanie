@@ -132,6 +132,7 @@ struct ProfileEditor: View {
                 Button(action: save) {
                     Text(isOnboarding ? "Zaczynamy" : editing == nil ? "Dodaj profil" : "Zapisz")
                         .font(Theme.rounded(.headline, .bold))
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                 }

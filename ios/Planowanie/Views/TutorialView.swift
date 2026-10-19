@@ -68,6 +68,7 @@ struct TutorialView: View {
             } label: {
                 Text(isLast ? "Zaczynamy" : "Dalej")
                     .font(Theme.rounded(.headline, .bold))
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
             }

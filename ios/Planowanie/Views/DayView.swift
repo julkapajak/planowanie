@@ -155,7 +155,7 @@ struct DayView: View {
                 Button {
                     let n = store.move(items.map(\.id), to: Day.add(selected, 1))
                     show("Przeniesione na jutro: \(n)")
-                } label: { Text("Przenieś na jutro") }
+                } label: { Text("Przenieś na jutro").foregroundStyle(.white) }
                 .buttonStyle(.borderedProminent)
                 Button(showLeftovers ? "Ukryj" : "Pokaż") { withAnimation(.snappy) { showLeftovers.toggle() } }
                     .buttonStyle(.bordered)

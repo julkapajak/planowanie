@@ -86,6 +86,7 @@ struct LockScreen: View {
             } label: {
                 Label("Odblokuj", systemImage: "faceid")
                     .font(Theme.rounded(.headline, .bold))
+                    .foregroundStyle(.white)
                     .frame(maxWidth: 240)
             }
             .buttonStyle(.borderedProminent)
