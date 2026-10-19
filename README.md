@@ -4,7 +4,8 @@ Spokojny planer dnia z przypomnieniami. Zawiera plan startowy do końca 2026 rok
 
 | Wersja | Skąd pobrać | Kod |
 |---|---|---|
-| **iPhone, iPad i Mac** | App Store / TestFlight, instrukcja w [`ios/README.md`](ios/README.md) | `ios/` (SwiftUI) |
+| **iPhone** | projekt Xcode, uruchomienie na symulatorze: [`ios/README.md`](ios/README.md) | `ios/` (SwiftUI) |
+| **Mac** | następny krok | – |
 | **Linux** | [Releases](https://github.com/julkapajak/planowanie/releases/latest): `.AppImage` albo `.deb` | `desktop/` (Electron) |
 | **Przeglądarka** | https://julkapajak.github.io/planowanie/ | katalog główny |
 

@@ -1,30 +1,38 @@
-name: iOS i Mac – kompilacja
+name: iPhone – projekt Xcode
 
+# Przy każdej zmianie w ios/: generuje Planowanie.xcodeproj z project.yml,
+# sprawdza, że aplikacja buduje się na symulator iPhone'a,
+# i jeśli projekt się zmienił – zapisuje go w repo.
 on:
   push:
     paths: ["ios/**", ".github/workflows/ios.yml"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: iPhone
-            destination: generic/platform=iOS Simulator
-          - name: Mac
-            destination: generic/platform=macOS,variant=Mac Catalyst
-    name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
       - name: Wygeneruj projekt Xcode
         run: brew install xcodegen && cd ios && xcodegen generate
-      - name: Zbuduj
+      - name: Zbuduj na symulator iPhone'a
         run: |
           cd ios
           xcodebuild -project Planowanie.xcodeproj -scheme Planowanie \
-            -destination '${{ matrix.destination }}' -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -configuration Debug \
             CODE_SIGNING_ALLOWED=NO build | tail -n 40
           exit ${PIPESTATUS[0]}
+      - name: Zapisz projekt w repo
+        run: |
+          git add ios/Planowanie.xcodeproj ios/Info.plist
+          if git diff --cached --quiet; then echo "Projekt bez zmian"; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898299+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Zaktualizuj projekt Xcode (wygenerowany z ios/project.yml)"
+          git push

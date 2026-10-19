@@ -1,3 +1,5 @@
+# Z tego pliku GitHub generuje ios/Planowanie.xcodeproj (workflow „iPhone – projekt Xcode”).
+# Do pracy wystarczy otworzyć gotowy Planowanie.xcodeproj.
 name: Planowanie
 options:
   bundleIdPrefix: com.julkapajak
@@ -13,34 +15,29 @@ targets:
   Planowanie:
     type: application
     platform: iOS
-    sources: [Planowanie]
+    sources:
+      # folder synchronizowany: nowe pliki w ios/Planowanie same trafiają do projektu
+      - path: Planowanie
+        type: syncedFolder
     info:
-      path: Planowanie/Info.plist
+      path: Info.plist
       properties:
         CFBundleDisplayName: Planowanie
         CFBundleDevelopmentRegion: pl
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        LSApplicationCategoryType: public.app-category.productivity
         UILaunchScreen:
           UIColorName: LaunchBackground
-        LSApplicationCategoryType: public.app-category.productivity
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        UISupportedInterfaceOrientations~ipad:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationPortraitUpsideDown
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.julkapajak.planowanie
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        # iPhone + iPad + Mac (Mac Catalyst) – jedna aplikacja w App Store na wszystkie urządzenia
-        TARGETED_DEVICE_FAMILY: "1,2"
-        SUPPORTS_MACCATALYST: YES
-        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
-        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Planowanie/Planowanie.entitlements
+        # na razie tylko iPhone; Mac dojdzie w kolejnym kroku (Planowanie.entitlements jest na to gotowy)
+        TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
 schemes:
   Planowanie:

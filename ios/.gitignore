@@ -1,5 +1,4 @@
-Planowanie.xcodeproj/
-Planowanie/Info.plist
 build/
 DerivedData/
 xcuserdata/
+*.xcuserstate
