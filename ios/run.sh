@@ -5,9 +5,20 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-if ! xcodebuild -version >/dev/null 2>&1; then
-  echo "❌ Terminal nie widzi Xcode. Wpisz raz:"
-  echo "   sudo xcode-select -s /Applications/Xcode.app"
+if ! OUT=$(xcodebuild -version 2>&1); then
+  XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | head -n1 || true)
+  if [ -z "$XCODE" ]; then
+    echo "❌ Nie widzę Xcode w folderze Aplikacje. Zainstaluj go z App Store i uruchom raz ręcznie."
+  elif echo "$OUT" | grep -qi "license"; then
+    echo "❌ Trzeba zaakceptować licencję Xcode. Wpisz (poprosi o hasło do Maca):"
+    echo "   sudo xcodebuild -license accept"
+  else
+    echo "❌ Terminal nie widzi Xcode. Wpisz (poprosi o hasło do Maca):"
+    echo "   sudo xcode-select -s \"$XCODE\""
+    echo "   sudo xcodebuild -license accept"
+    echo "   xcodebuild -runFirstLaunch"
+  fi
+  echo "Potem uruchom znowu: ios/run.sh"
   exit 1
 fi
 
