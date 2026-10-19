@@ -1,0 +1,64 @@
+name: iPhone – zrzuty ekranu
+
+# Uruchamiane ręcznie: buduje aplikację, odpala ją na symulatorze iPhone'a
+# i zapisuje zrzuty ekranu w ios/screenshots/.
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: Model symulatora
+        default: iPhone 16 Pro Max
+
+permissions:
+  contents: write
+
+jobs:
+  screenshots:
+    runs-on: macos-15
+    env:
+      DEVICE: ${{ inputs.device || 'iPhone 16 Pro Max' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zbuduj
+        run: |
+          cd ios
+          xcodebuild -project Planowanie.xcodeproj -scheme Planowanie \
+            -destination "platform=iOS Simulator,name=$DEVICE" -configuration Debug \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build | tail -n 20
+          exit ${PIPESTATUS[0]}
+
+      - name: Zrób zrzuty ekranu
+        run: |
+          UDID=$(xcrun simctl list devices available | grep -m1 -F "    $DEVICE (" | grep -oE '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}')
+          echo "Symulator: $DEVICE ($UDID)"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4
+          xcrun simctl install "$UDID" ios/build/Build/Products/Debug-iphonesimulator/Planowanie.app
+
+          OUT=ios/screenshots
+          rm -rf "$OUT" && mkdir -p "$OUT"
+          shot() {
+            local name=$1; shift
+            xcrun simctl launch --terminate-running-process "$UDID" com.julkapajak.planowanie "$@"
+            sleep 6
+            xcrun simctl io "$UDID" screenshot "$OUT/$name.png"
+          }
+          shot 1-powitanie
+          shot 2-dzien -demoProfile Julia
+          shot 3-tydzien -startTab 1
+          shot 4-ustawienia -startTab 2
+          xcrun simctl ui "$UDID" appearance dark
+          shot 5-dzien-ciemny
+          sips -Z 1000 "$OUT"/*.png >/dev/null
+          ls -la "$OUT"
+
+      - name: Zapisz zrzuty w repo
+        run: |
+          git add ios/screenshots
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898299+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Zrzuty ekranu: $DEVICE"
+          git pull --rebase -q
+          git push

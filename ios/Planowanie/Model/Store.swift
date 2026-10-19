@@ -45,6 +45,13 @@ final class Store: ObservableObject {
         profiles = saved
         activeID = id
         tasks = id.map { Store.loadTasks($0) } ?? []
+
+        #if DEBUG
+        // Zrzuty ekranu w CI: `-demoProfile Julia` tworzy profil z gotowym planem.
+        if saved.isEmpty, let demo = UserDefaults.standard.string(forKey: "demoProfile") {
+            createProfile(name: demo, emoji: "🌸", color: Profile.colors[0], withSeed: true)
+        }
+        #endif
     }
 
     private func saveTasks() {

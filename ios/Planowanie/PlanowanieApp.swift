@@ -23,6 +23,13 @@ struct ContentView: View {
     @State private var tab = 0
     @State private var selected = Day.today
 
+    init() {
+        #if DEBUG
+        // Zrzuty ekranu w CI: `-startTab 1` otwiera od razu wybraną zakładkę.
+        _tab = State(initialValue: UserDefaults.standard.integer(forKey: "startTab"))
+        #endif
+    }
+
     var body: some View {
         Group {
             if store.active == nil {
