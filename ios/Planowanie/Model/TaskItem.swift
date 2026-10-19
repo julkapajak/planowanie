@@ -68,6 +68,13 @@ enum Category: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Mały krok w ramach zadania – łatwiej zacząć, gdy wiadomo, od czego.
+struct Step: Codable, Identifiable, Hashable {
+    var id: String
+    var title: String
+    var done: Bool = false
+}
+
 struct TaskItem: Codable, Identifiable, Hashable {
     var id: String
     var date: String   // yyyy-MM-dd
@@ -77,8 +84,9 @@ struct TaskItem: Codable, Identifiable, Hashable {
     var title: String
     var note: String
     var done: Bool
+    var steps: [Step]
 
-    init(id: String = TaskItem.newID(), date: String, time: String, dur: Int, cat: Category, title: String, note: String = "", done: Bool = false) {
+    init(id: String = TaskItem.newID(), date: String, time: String, dur: Int, cat: Category, title: String, note: String = "", done: Bool = false, steps: [Step] = []) {
         self.id = id
         self.date = date
         self.time = time
@@ -87,6 +95,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
         self.title = title
         self.note = note
         self.done = done
+        self.steps = steps
     }
 
     init(from decoder: Decoder) throws {
@@ -99,6 +108,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
         title = try c.decode(String.self, forKey: .title)
         note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
         done = try c.decodeIfPresent(Bool.self, forKey: .done) ?? false
+        steps = try c.decodeIfPresent([Step].self, forKey: .steps) ?? []
     }
 
     static func newID() -> String { "u" + UUID().uuidString.prefix(8).lowercased() }
@@ -106,6 +116,8 @@ struct TaskItem: Codable, Identifiable, Hashable {
     var startMinutes: Int { Day.minutes(time) }
     var endMinutes: Int { startMinutes + dur }
     var startDate: Date { Day.date(date, minutes: startMinutes) }
+    var endDate: Date { Day.date(date, minutes: endMinutes) }
+    var nextStep: Step? { steps.first { !$0.done } }
     /// Krótka nazwa do podsumowań: „Siłownia – Siła A – …” → „Siłownia”.
     var shortTitle: String { title.components(separatedBy: " – ").first ?? title }
 }

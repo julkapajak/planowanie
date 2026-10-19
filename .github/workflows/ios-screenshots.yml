@@ -58,8 +58,9 @@ jobs:
           shot 2-dzien -demoProfile Julia
           shot 3-tydzien -startTab 1
           shot 4-ustawienia -startTab 2
+          shot 5-skupienie -openFocus 1
           xcrun simctl ui "$UDID" appearance dark
-          shot 5-dzien-ciemny
+          shot 6-dzien-ciemny
           sips -Z 1000 "$OUT"/*.png >/dev/null
           ls -la "$OUT"
 

@@ -80,7 +80,8 @@ enum Seed {
         var out: [TaskItem] = []
         func add(_ time: String, _ dur: Int, _ cat: Category, _ title: String? = nil, _ note: String = "") {
             let id = "\(s)-\(out.count)"
-            out.append(TaskItem(id: id, date: s, time: time, dur: dur, cat: cat, title: title ?? cat.name, note: note))
+            let steps = defaultSteps(cat, dur).enumerated().map { Step(id: "\(id)-s\($0.offset)", title: $0.element) }
+            out.append(TaskItem(id: id, date: s, time: time, dur: dur, cat: cat, title: title ?? cat.name, note: note, steps: steps))
         }
 
         // Święta: lekko, bez nauki.
@@ -135,6 +136,26 @@ enum Seed {
             add("19:00", 20, .life, "Przegląd tygodnia", "Co poszło dobrze? Co przesunąć na kolejny tydzień?")
         }
         return out
+    }
+
+    /// Duże bloki rozbite na małe kroki: łatwiej zacząć i widać postęp.
+    static func defaultSteps(_ cat: Category, _ dur: Int) -> [String] {
+        switch cat {
+        case .atpl, .par, .mech, .stan:
+            let prep = "Przygotuj miejsce: woda, telefon na bok"
+            let end = "Zapisz, na czym kończysz"
+            return dur >= 180
+                ? [prep, "Blok 1 – 50 min", "Przerwa 10 min – wstań i się rozciągnij", "Blok 2 – 50 min", "Przerwa 10 min", "Blok 3 – 50 min", end]
+                : [prep, "Blok 1 – 50 min", "Przerwa 10 min – wstań i się rozciągnij", "Blok 2 – 50 min", end]
+        case .gym:
+            return ["Ubierz się i spakuj wodę", "Rozgrzewka 10 min", "Trening główny", "Rozciąganie 5 min"]
+        case .clean:
+            return ["Włącz ulubioną muzykę 🎵", "Zbierz rzeczy z podłogi", "Kuchnia i zlew", "Odkurzanie", "Wynieś śmieci"]
+        case .west:
+            return ["Przygotuj strój i sprzęt"]
+        case .food, .life:
+            return []
+        }
     }
 
     static func build() -> [TaskItem] {

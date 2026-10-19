@@ -16,6 +16,11 @@ struct DayView: View {
     @State private var hapticTrigger = 0
     @State private var editingProfile: Profile?
     @State private var addingProfile = false
+    @State private var focusTask: TaskItem?
+    @State private var showAll = false
+    @State private var showDone = false
+    @State private var showLeftovers = false
+    @AppStorage(Prefs.simpleMode) private var simpleMode = true
 
     private let cheers = ["Brawo! ✨", "Jedno z głowy 💪", "Tak trzymaj!", "Pięknie idzie 🌟", "Kolejne odhaczone ✓", "Super robota!"]
 
@@ -28,7 +33,9 @@ struct DayView: View {
                     header(list: list, now: now)
                     DayStrip(selected: $selected)
                     if authStatus == .notDetermined && !notifyOn && !bannerDismissed { notifyBanner }
-                    if selected == Day.key(now) { NextCard(tasks: list, now: now) }
+                    if selected == Day.key(now) {
+                        NextCard(tasks: list, now: now) { focusTask = $0 }
+                    }
                     if list.isEmpty {
                         Text("Wolny dzień. Odpocznij 🌿")
                             .font(Theme.rounded(.title3, .semibold))
@@ -36,12 +43,7 @@ struct DayView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.top, 40)
                     }
-                    LazyVStack(spacing: 10) {
-                        ForEach(list) { t in
-                            TaskRow(task: t, isNow: isNow(t, now)) { toggle(t) }
-                                .onTapGesture { editing = t }
-                        }
-                    }
+                    taskList(list, now: now)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 96)
@@ -63,7 +65,113 @@ struct DayView: View {
         .sheet(isPresented: $addingNew) {
             TaskEditor(task: nil, defaultDate: selected) { msg in show(msg) }.environmentObject(store)
         }
+        .fullScreenCover(item: $focusTask) { t in
+            FocusView(taskID: t.id).environmentObject(store)
+        }
+        .onChange(of: selected) {
+            showAll = false
+            showDone = false
+            showLeftovers = false
+        }
         .task { authStatus = await NotificationManager.shared.authorizationStatus() }
+        #if DEBUG
+        .onAppear {
+            // Zrzuty ekranu w CI: `-openFocus 1` otwiera tryb skupienia dla najbliższego zadania.
+            if UserDefaults.standard.bool(forKey: "openFocus") {
+                let m = Day.nowMinutes()
+                let open = store.tasks(on: Day.today).filter { !$0.done }
+                focusTask = open.first { $0.endMinutes > m } ?? open.first
+            }
+        }
+        #endif
+    }
+
+    // MARK: lista zadań
+
+    /// Dziś w prostym widoku: tylko 3 najbliższe zadania, zrobione zwinięte,
+    /// a to, co nie wyszło, w łagodnej karcie z przeniesieniem na jutro.
+    @ViewBuilder
+    private func taskList(_ list: [TaskItem], now: Date) -> some View {
+        let isToday = selected == Day.key(now)
+        let m = Day.nowMinutes(now)
+        let leftovers = isToday ? list.filter { !$0.done && $0.endMinutes <= m } : []
+        if !leftovers.isEmpty { leftoversCard(leftovers) }
+
+        if isToday && simpleMode {
+            let upcoming = list.filter { !$0.done && $0.endMinutes > m }
+            let done = list.filter(\.done)
+            rows(showLeftovers ? leftovers : [], now: now)
+            rows(showAll ? upcoming : Array(upcoming.prefix(3)), now: now)
+            if upcoming.count > 3 && !showAll {
+                moreButton("Pokaż resztę dnia (+\(upcoming.count - 3))") { showAll = true }
+            }
+            if !done.isEmpty {
+                moreButton(showDone ? "Ukryj zrobione" : "✓ Zrobione dziś: \(done.count)") { showDone.toggle() }
+                if showDone { rows(done, now: now) }
+            }
+        } else {
+            rows(list.filter { !leftovers.contains($0) || showLeftovers }, now: now)
+        }
+    }
+
+    private func rows(_ items: [TaskItem], now: Date) -> some View {
+        LazyVStack(spacing: 10) {
+            ForEach(items) { t in
+                TaskRow(task: t, isNow: isNow(t, now), elapsed: elapsed(t, now)) { toggle(t) }
+                    .onTapGesture { focusTask = t }
+                    .contextMenu {
+                        Button { focusTask = t } label: { Label("Skup się", systemImage: "scope") }
+                        Button { editing = t } label: { Label("Edytuj", systemImage: "pencil") }
+                        Button { store.postpone(t.id, minutes: 60) } label: { Label("Przesuń o godzinę", systemImage: "clock.arrow.circlepath") }
+                        Button {
+                            store.moveToTomorrow(t.id)
+                            show("Przeniesione na jutro")
+                        } label: { Label("Przenieś na jutro", systemImage: "arrow.right.circle") }
+                        Button(role: .destructive) { store.delete(t.id) } label: { Label("Usuń", systemImage: "trash") }
+                    }
+            }
+        }
+    }
+
+    private func moreButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button { withAnimation(.snappy) { action() } } label: {
+            Text(title)
+                .font(Theme.rounded(.subheadline, .bold))
+                .foregroundStyle(Theme.muted)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func leftoversCard(_ items: [TaskItem]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Nie wszystko wyszło – i to jest OK 💛")
+                .font(Theme.rounded(.headline, .bold))
+            Text("Z wcześniej \(Day.tasksWord(items.count) == "zadania" ? "zostały" : "zostało") \(items.count) \(Day.tasksWord(items.count)). Możesz przenieść je na jutro jednym dotknięciem.")
+                .font(Theme.rounded(.subheadline))
+                .foregroundStyle(Theme.muted)
+            HStack {
+                Button {
+                    let n = store.move(items.map(\.id), to: Day.add(selected, 1))
+                    show("Przeniesione na jutro: \(n)")
+                } label: { Text("Przenieś na jutro") }
+                .buttonStyle(.borderedProminent)
+                Button(showLeftovers ? "Ukryj" : "Pokaż") { withAnimation(.snappy) { showLeftovers.toggle() } }
+                    .buttonStyle(.bordered)
+            }
+            .font(Theme.rounded(.subheadline, .bold))
+            .buttonBorderShape(.capsule)
+        }
+        .foregroundStyle(Theme.fg)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func elapsed(_ t: TaskItem, _ now: Date) -> Double? {
+        guard isNow(t, now) else { return nil }
+        return Double(Day.nowMinutes(now) - t.startMinutes) / Double(max(1, t.dur))
     }
 
     // MARK: części
@@ -316,6 +424,7 @@ struct DayStrip: View {
 struct NextCard: View {
     let tasks: [TaskItem]
     let now: Date
+    var onFocus: (TaskItem) -> Void = { _ in }
 
     var body: some View {
         let m = Day.nowMinutes(now)
@@ -330,12 +439,19 @@ struct NextCard: View {
             let left = current != nil ? t.endMinutes - m : t.startMinutes - m
             let sub = current != nil ? "jeszcze \(Day.duration(left))"
                 : left < 60 ? "za \(left) min" : "o \(t.time) · za \(Day.duration(left))"
-            content(kicker: current != nil ? "Teraz" : "Następne", title: t.title, sub: sub,
-                    colors: [t.cat.color, t.cat.color.opacity(0.75)], symbol: t.cat.symbol)
+            Button { onFocus(t) } label: {
+                content(kicker: current != nil ? "Teraz" : "Następne", title: t.title, sub: sub,
+                        colors: [t.cat.color, t.cat.color.opacity(0.75)], symbol: t.cat.symbol,
+                        step: t.nextStep?.title,
+                        progress: current != nil ? Double(m - t.startMinutes) / Double(max(1, t.dur)) : nil)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Otwiera tryb skupienia")
         }
     }
 
-    private func content(kicker: String, title: String, sub: String, colors: [Color], symbol: String? = nil) -> some View {
+    private func content(kicker: String, title: String, sub: String, colors: [Color], symbol: String? = nil,
+                         step: String? = nil, progress: Double? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(kicker.uppercased())
                 .font(.system(size: 12, weight: .heavy, design: .rounded))
@@ -349,6 +465,27 @@ struct NextCard: View {
             Text(sub)
                 .font(Theme.rounded(.subheadline, .semibold))
                 .opacity(0.9)
+            if let progress {
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.25))
+                        Capsule().fill(.white).frame(width: g.size.width * min(1, max(0, progress)))
+                    }
+                }
+                .frame(height: 6)
+                .padding(.top, 6)
+            }
+            if symbol != nil {
+                HStack {
+                    if let step {
+                        Text("Pierwszy krok: \(step)").lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Text("Skup się →").fontWeight(.heavy)
+                }
+                .font(Theme.rounded(.footnote, .semibold))
+                .padding(.top, 8)
+            }
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -367,6 +504,7 @@ struct NextCard: View {
 struct TaskRow: View {
     let task: TaskItem
     let isNow: Bool
+    var elapsed: Double? = nil
     let onToggle: () -> Void
 
     var body: some View {
@@ -386,11 +524,26 @@ struct TaskRow: View {
                 Text(task.title)
                     .font(Theme.rounded(.body, .bold))
                     .strikethrough(task.done, color: c)
-                if !task.note.isEmpty {
+                if !task.steps.isEmpty {
+                    Label("kroki \(task.steps.filter(\.done).count)/\(task.steps.count)", systemImage: "list.bullet")
+                        .font(Theme.rounded(.caption, .semibold))
+                        .foregroundStyle(Theme.muted)
+                } else if !task.note.isEmpty {
                     Text(task.note)
                         .font(Theme.rounded(.footnote))
                         .foregroundStyle(Theme.muted)
                         .lineLimit(2)
+                }
+                if let elapsed {
+                    GeometryReader { g in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Theme.line)
+                            Capsule().fill(c).frame(width: g.size.width * min(1, max(0, elapsed)))
+                        }
+                    }
+                    .frame(height: 5)
+                    .padding(.top, 4)
+                    .accessibilityLabel("Upłynęło \(Int(elapsed * 100)) procent czasu")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

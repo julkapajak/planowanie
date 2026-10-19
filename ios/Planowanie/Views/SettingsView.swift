@@ -10,6 +10,9 @@ struct SettingsView: View {
     @AppStorage(Prefs.lead) private var lead = 10
     @AppStorage(Prefs.morningOn) private var morningOn = true
     @AppStorage(Prefs.morning) private var morningMinutes = 450
+    @AppStorage(Prefs.startReminder) private var startReminder = true
+    @AppStorage(Prefs.simpleMode) private var simpleMode = true
+    @AppStorage(Prefs.keepAwake) private var keepAwake = true
 
     @State private var authStatus: UNAuthorizationStatus = .notDetermined
     @State private var exporting = false
@@ -48,6 +51,16 @@ struct SettingsView: View {
                          : "Przypomnienia przychodzą też przy zamkniętej aplikacji. W powiadomieniu możesz od razu odhaczyć zadanie albo odłożyć je o 10 minut.")
                 }
 
+                Section {
+                    Toggle("Prosty widok dnia", isOn: $simpleMode)
+                    Toggle("Drugie przypomnienie w chwili startu", isOn: $startReminder)
+                    Toggle("Nie wygaszaj ekranu w trybie skupienia", isOn: $keepAwake)
+                } header: {
+                    Text("🧠 Wsparcie skupienia")
+                } footer: {
+                    Text("Prosty widok pokazuje tylko 3 najbliższe zadania. Dotknij zadania, żeby otworzyć tryb skupienia z timerem i małymi krokami.")
+                }
+
                 if authStatus == .denied {
                     Button("Otwórz Ustawienia iPhone’a") {
                         if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
@@ -73,6 +86,7 @@ struct SettingsView: View {
         .onChange(of: lead) { store.refreshNotifications() }
         .onChange(of: morningOn) { store.refreshNotifications() }
         .onChange(of: morningMinutes) { store.refreshNotifications() }
+        .onChange(of: startReminder) { store.refreshNotifications() }
         .fileExporter(isPresented: $exporting, document: BackupDocument(data: store.backupData()),
                       contentType: .json, defaultFilename: "planowanie-kopia-\(Day.today)") { result in
             if case .success = result { message = "Kopia zapisana" }

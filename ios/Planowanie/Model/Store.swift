@@ -157,6 +157,55 @@ final class Store: ObservableObject {
         return new.count
     }
 
+    // MARK: kroki i przesuwanie
+
+    /// Odhacza krok. Gdy wszystkie kroki są zrobione, zadanie też jest zrobione.
+    func toggleStep(_ taskID: String, _ stepID: String) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskID }),
+              let j = tasks[i].steps.firstIndex(where: { $0.id == stepID }) else { return }
+        var t = tasks[i]
+        t.steps[j].done.toggle()
+        if t.steps.allSatisfy(\.done) { t.done = true } else if !t.steps[j].done { t.done = false }
+        tasks[i] = t
+    }
+
+    func addStep(_ taskID: String, title: String) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+        tasks[i].steps.append(Step(id: TaskItem.newID(), title: title))
+        tasks[i].done = false
+    }
+
+    /// Przesuwa start zadania o `minutes`; po północy zadanie przechodzi na następny dzień.
+    func postpone(_ id: String, minutes: Int) {
+        guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
+        let m = tasks[i].startMinutes + minutes
+        if m >= 24 * 60 {
+            tasks[i].date = Day.add(tasks[i].date, 1)
+            tasks[i].time = Day.time(m - 24 * 60)
+        } else {
+            tasks[i].time = Day.time(m)
+        }
+    }
+
+    func moveToTomorrow(_ id: String) {
+        guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[i].date = Day.add(tasks[i].date, 1)
+    }
+
+    /// Przenosi wskazane zadania na podany dzień (te same godziny). Zwraca liczbę przeniesionych.
+    @discardableResult
+    func move(_ ids: [String], to day: String) -> Int {
+        let set = Set(ids)
+        var copy = tasks
+        var n = 0
+        for i in copy.indices where set.contains(copy[i].id) {
+            copy[i].date = day
+            n += 1
+        }
+        tasks = copy
+        return n
+    }
+
     func delete(_ id: String) {
         tasks.removeAll { $0.id == id }
     }

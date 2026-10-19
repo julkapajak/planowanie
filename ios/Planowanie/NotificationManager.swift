@@ -5,11 +5,15 @@ enum Prefs {
     static let lead = "lead"
     static let morningOn = "morningOn"
     static let morning = "morningMinutes"
+    static let startReminder = "startReminder"
+    static let simpleMode = "simpleMode"
+    static let keepAwake = "keepAwake"
 
     static var defaults: UserDefaults { .standard }
     static var leadMinutes: Int { defaults.object(forKey: lead) as? Int ?? 10 }
     static var morningMinutes: Int { defaults.object(forKey: morning) as? Int ?? 450 }
     static var morningEnabled: Bool { defaults.object(forKey: morningOn) as? Bool ?? true }
+    static var startReminderEnabled: Bool { defaults.object(forKey: startReminder) as? Bool ?? true }
 }
 
 /// Lokalne powiadomienia: przypomnienie przed każdym zadaniem i poranne podsumowanie.
@@ -22,6 +26,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private var pending: Task<Void, Never>?
     private let maxScheduled = 60
     private let snoozeSuffix = "-snooze"
+    private let focusTimerID = "focus-timer"
 
     func setup() {
         center.delegate = self
@@ -52,7 +57,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private func apply(_ tasks: [TaskItem], name: String?) async {
         let old = await center.pendingNotificationRequests()
             .map(\.identifier)
-            .filter { !$0.hasSuffix(snoozeSuffix) }
+            .filter { !$0.hasSuffix(snoozeSuffix) && $0 != focusTimerID }
         center.removePendingNotificationRequests(withIdentifiers: old)
 
         guard Prefs.defaults.bool(forKey: Prefs.notify),
@@ -62,17 +67,23 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let lead = Prefs.leadMinutes
         var items: [(Date, UNNotificationRequest)] = []
 
+        let startToo = Prefs.startReminderEnabled && lead > 0
         for t in tasks where !t.done {
+            let first = t.nextStep.map { "Pierwszy krok: \($0.title)" }
             let fire = t.startDate.addingTimeInterval(TimeInterval(-lead * 60))
-            guard fire > now else { continue }
-            let c = UNMutableNotificationContent()
-            c.title = "\(t.cat.emoji) \(lead == 0 ? "Teraz" : "Za \(lead) min"): \(t.title)"
-            c.body = "\(t.time)–\(Day.time(t.endMinutes))" + (t.note.isEmpty ? "" : " · \(t.note)")
-            c.sound = .default
-            c.categoryIdentifier = "TASK"
-            c.threadIdentifier = t.date
-            c.userInfo = ["id": t.id]
-            items.append((fire, request(id: t.id, content: c, at: fire)))
+            if fire > now {
+                let c = taskContent(t)
+                c.title = "\(t.cat.emoji) \(lead == 0 ? "Teraz" : "Za \(lead) min"): \(t.title)"
+                c.body = "\(t.time)–\(Day.time(t.endMinutes))" + (first ?? t.note).prefixed(" · ")
+                items.append((fire, request(id: t.id, content: c, at: fire)))
+            }
+            // Drugie przypomnienie w chwili startu – przejście między zajęciami bywa najtrudniejsze.
+            if startToo && t.startDate > now {
+                let c = taskContent(t)
+                c.title = "▶︎ Zaczynamy: \(t.title)"
+                c.body = first ?? "Zacznij od 5 minut – reszta przyjdzie sama 💪"
+                items.append((t.startDate, request(id: t.id + "-start", content: c, at: t.startDate)))
+            }
         }
 
         if Prefs.morningEnabled {
@@ -94,6 +105,29 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         for (_, r) in items.sorted(by: { $0.0 < $1.0 }).prefix(maxScheduled) {
             try? await center.add(r)
         }
+    }
+
+    private func taskContent(_ t: TaskItem) -> UNMutableNotificationContent {
+        let c = UNMutableNotificationContent()
+        c.sound = .default
+        c.categoryIdentifier = "TASK"
+        c.threadIdentifier = t.date
+        c.userInfo = ["id": t.id]
+        return c
+    }
+
+    /// Powiadomienie po końcu timera w trybie skupienia (działa też przy zablokowanym telefonie).
+    func scheduleFocusTimer(after seconds: TimeInterval, title: String, body: String) {
+        let c = UNMutableNotificationContent()
+        c.title = title
+        c.body = body
+        c.sound = .default
+        center.add(UNNotificationRequest(identifier: focusTimerID, content: c,
+                                         trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, seconds), repeats: false)))
+    }
+
+    func cancelFocusTimer() {
+        center.removePendingNotificationRequests(withIdentifiers: [focusTimerID])
     }
 
     private func request(id: String, content: UNNotificationContent, at date: Date) -> UNNotificationRequest {
@@ -132,4 +166,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             break
         }
     }
+}
+
+private extension String {
+    /// "" zostaje pustym tekstem, a niepusty tekst dostaje przedrostek.
+    func prefixed(_ p: String) -> String { isEmpty ? "" : p + self }
 }

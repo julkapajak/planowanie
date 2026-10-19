@@ -13,6 +13,8 @@ struct TaskEditor: View {
     @State private var dur: Int
     @State private var cat: Category
     @State private var note: String
+    @State private var steps: [Step]
+    @State private var newStep = ""
     @State private var weekly = false
     @State private var confirmDelete = false
 
@@ -34,6 +36,7 @@ struct TaskEditor: View {
         _dur = State(initialValue: task?.dur ?? 60)
         _cat = State(initialValue: task?.cat ?? .life)
         _note = State(initialValue: task?.note ?? "")
+        _steps = State(initialValue: task?.steps ?? [])
     }
 
     var body: some View {
@@ -58,6 +61,23 @@ struct TaskEditor: View {
                     if original == nil {
                         Toggle("Powtarzaj co tydzień do końca planu", isOn: $weekly)
                     }
+                }
+                Section {
+                    ForEach($steps) { $s in
+                        TextField("Krok", text: $s.title)
+                    }
+                    .onDelete { steps.remove(atOffsets: $0) }
+                    .onMove { steps.move(fromOffsets: $0, toOffset: $1) }
+                    HStack {
+                        Image(systemName: "plus.circle.fill").foregroundStyle(Theme.accent)
+                        TextField("Dodaj mały krok", text: $newStep)
+                            .submitLabel(.done)
+                            .onSubmit(addStep)
+                    }
+                } header: {
+                    Text("Małe kroki")
+                } footer: {
+                    Text("Rozbij zadanie na kroki tak małe, że łatwo je zacząć, np. „Otwórz notatki”.")
                 }
                 Section("Notatka") {
                     TextField("np. rozdział, ćwiczenia, link", text: $note, axis: .vertical)
@@ -91,6 +111,13 @@ struct TaskEditor: View {
         .presentationDragIndicator(.visible)
     }
 
+    private func addStep() {
+        let title = newStep.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        steps.append(Step(id: TaskItem.newID(), title: title))
+        newStep = ""
+    }
+
     private func save() {
         var t = original ?? TaskItem(date: "", time: "", dur: 60, cat: .life, title: "")
         t.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -99,6 +126,10 @@ struct TaskEditor: View {
         t.dur = dur
         t.cat = cat
         t.note = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        var all = steps
+        let extra = newStep.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !extra.isEmpty { all.append(Step(id: TaskItem.newID(), title: extra)) }
+        t.steps = all.filter { !$0.title.trimmingCharacters(in: .whitespaces).isEmpty }
         if original != nil {
             store.update(t)
             onDone("Zapisano")
