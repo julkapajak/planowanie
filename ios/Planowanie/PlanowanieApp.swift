@@ -19,9 +19,13 @@ struct PlanowanieApp: App {
 
 struct ContentView: View {
     @EnvironmentObject private var store: Store
+    @ObservedObject private var lock = Lock.shared
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(Prefs.appearance) private var appearance = 0
+    @AppStorage(Prefs.tutorialDone) private var tutorialDone = false
     @State private var tab = 0
     @State private var selected = Day.today
+    @State private var showTutorial = false
 
     init() {
         #if DEBUG
@@ -34,12 +38,37 @@ struct ContentView: View {
         Group {
             if store.active == nil {
                 ProfileEditor(isOnboarding: true)
+            } else if let p = store.active, lock.needsUnlock(p) {
+                LockScreen(profile: p)
             } else {
                 tabs
             }
         }
+        .overlay {
+            // w przełączniku aplikacji chroniony plan jest zasłonięty
+            if scenePhase != .active && store.active?.locked == true { PrivacyCover() }
+        }
+        .fullScreenCover(isPresented: $showTutorial) {
+            TutorialView {
+                tutorialDone = true
+                showTutorial = false
+            }
+            .environmentObject(store)
+        }
+        .onAppear {
+            applyAppearance()
+            showTutorialIfNeeded()
+        }
+        .onChange(of: appearance) { applyAppearance() }
+        .onChange(of: store.activeID) { showTutorialIfNeeded() }
+        .onChange(of: lock.unlockedID) { showTutorialIfNeeded() }
+        .onChange(of: tutorialDone) { showTutorialIfNeeded() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { store.refreshNotifications() }
+            lock.sceneChanged(phase)
+            if phase == .active {
+                applyAppearance()
+                store.refreshNotifications()
+            }
         }
         #if targetEnvironment(macCatalyst)
         .onAppear {
@@ -49,6 +78,18 @@ struct ContentView: View {
             }
         }
         #endif
+    }
+
+    private func showTutorialIfNeeded() {
+        if store.active != nil && !tutorialDone && !lock.needsUnlock(store.active) { showTutorial = true }
+    }
+
+    /// Jasny / ciemny / automatyczny wygląd dla całego okna (także arkuszy i trybu skupienia).
+    private func applyAppearance() {
+        let style: UIUserInterfaceStyle = appearance == 1 ? .light : appearance == 2 ? .dark : .unspecified
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            scene.windows.forEach { $0.overrideUserInterfaceStyle = style }
+        }
     }
 
     private var tabs: some View {

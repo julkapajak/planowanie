@@ -212,7 +212,8 @@ struct FocusView: View {
         NotificationManager.shared.scheduleFocusTimer(
             after: seconds,
             title: isBreak ? "☕️ Koniec przerwy" : "⏱ \(minutes) min minęło!",
-            body: isBreak ? "Wracamy do: \(t.title)" : "Świetnie! Kontynuujesz czy chwila przerwy?"
+            body: isBreak ? (Prefs.hideDetailsEnabled ? "Wracamy do zadania" : "Wracamy do: \(t.title)")
+                : "Świetnie! Kontynuujesz czy chwila przerwy?"
         )
     }
 

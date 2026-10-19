@@ -55,12 +55,12 @@ jobs:
             xcrun simctl io "$UDID" screenshot "$OUT/$name.png"
           }
           shot 1-powitanie
-          shot 2-dzien -demoProfile Julia
-          shot 3-tydzien -startTab 1
-          shot 4-ustawienia -startTab 2
-          shot 5-skupienie -openFocus 1
-          xcrun simctl ui "$UDID" appearance dark
-          shot 6-dzien-ciemny
+          shot 2-instrukcja -demoProfile Julia
+          shot 3-dzien -tutorialDone 1
+          shot 4-tydzien -tutorialDone 1 -startTab 1
+          shot 5-ustawienia -tutorialDone 1 -startTab 2
+          shot 6-skupienie -tutorialDone 1 -openFocus 1
+          shot 7-dzien-ciemny -tutorialDone 1 -appearance 2
           sips -Z 1000 "$OUT"/*.png >/dev/null
           ls -la "$OUT"
 

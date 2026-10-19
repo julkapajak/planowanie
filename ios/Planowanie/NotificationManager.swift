@@ -8,12 +8,16 @@ enum Prefs {
     static let startReminder = "startReminder"
     static let simpleMode = "simpleMode"
     static let keepAwake = "keepAwake"
+    static let hideDetails = "hideDetails"
+    static let appearance = "appearance"
+    static let tutorialDone = "tutorialDone"
 
     static var defaults: UserDefaults { .standard }
     static var leadMinutes: Int { defaults.object(forKey: lead) as? Int ?? 10 }
     static var morningMinutes: Int { defaults.object(forKey: morning) as? Int ?? 450 }
     static var morningEnabled: Bool { defaults.object(forKey: morningOn) as? Bool ?? true }
     static var startReminderEnabled: Bool { defaults.object(forKey: startReminder) as? Bool ?? true }
+    static var hideDetailsEnabled: Bool { defaults.bool(forKey: hideDetails) }
 }
 
 /// Lokalne powiadomienia: przypomnienie przed każdym zadaniem i poranne podsumowanie.
@@ -68,20 +72,23 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         var items: [(Date, UNNotificationRequest)] = []
 
         let startToo = Prefs.startReminderEnabled && lead > 0
+        let hide = Prefs.hideDetailsEnabled
+        let hidden = "Otwórz Planowanie, żeby zobaczyć szczegóły"
         for t in tasks where !t.done {
             let first = t.nextStep.map { "Pierwszy krok: \($0.title)" }
             let fire = t.startDate.addingTimeInterval(TimeInterval(-lead * 60))
             if fire > now {
                 let c = taskContent(t)
-                c.title = "\(t.cat.emoji) \(lead == 0 ? "Teraz" : "Za \(lead) min"): \(t.title)"
-                c.body = "\(t.time)–\(Day.time(t.endMinutes))" + (first ?? t.note).prefixed(" · ")
+                let when = lead == 0 ? "Teraz" : "Za \(lead) min"
+                c.title = hide ? "⏰ \(when): zadanie z planu" : "\(t.cat.emoji) \(when): \(t.title)"
+                c.body = hide ? hidden : "\(t.time)–\(Day.time(t.endMinutes))" + (first ?? t.note).prefixed(" · ")
                 items.append((fire, request(id: t.id, content: c, at: fire)))
             }
             // Drugie przypomnienie w chwili startu – przejście między zajęciami bywa najtrudniejsze.
             if startToo && t.startDate > now {
                 let c = taskContent(t)
-                c.title = "▶︎ Zaczynamy: \(t.title)"
-                c.body = first ?? "Zacznij od 5 minut – reszta przyjdzie sama 💪"
+                c.title = hide ? "▶︎ Czas na kolejne zadanie" : "▶︎ Zaczynamy: \(t.title)"
+                c.body = hide ? hidden : first ?? "Zacznij od 5 minut – reszta przyjdzie sama 💪"
                 items.append((t.startDate, request(id: t.id + "-start", content: c, at: t.startDate)))
             }
         }
@@ -93,9 +100,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                 let fire = Day.date(day, minutes: Prefs.morningMinutes)
                 guard fire > now, let list = byDay[day]?.sorted(by: { $0.time < $1.time }), !list.isEmpty else { continue }
                 let c = UNMutableNotificationContent()
-                let hello = name.map { "Dzień dobry, \($0)!" } ?? "Dzień dobry!"
+                let hello = hide ? "Dzień dobry!" : name.map { "Dzień dobry, \($0)!" } ?? "Dzień dobry!"
                 c.title = "\(hello) Dziś \(list.count) \(Day.tasksWord(list.count)) ☀️"
-                c.body = list.filter { $0.cat != .food }.map { "\($0.time) \($0.shortTitle)" }.joined(separator: " · ")
+                c.body = hide ? "Otwórz Planowanie, żeby zobaczyć plan dnia"
+                    : list.filter { $0.cat != .food }.map { "\($0.time) \($0.shortTitle)" }.joined(separator: " · ")
                 c.sound = .default
                 c.threadIdentifier = "morning"
                 items.append((fire, request(id: "morning-\(day)", content: c, at: fire)))

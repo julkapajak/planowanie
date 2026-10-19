@@ -24,6 +24,8 @@
 	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID chroni Twój plan przed innymi osobami.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

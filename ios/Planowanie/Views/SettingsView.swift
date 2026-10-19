@@ -13,6 +13,10 @@ struct SettingsView: View {
     @AppStorage(Prefs.startReminder) private var startReminder = true
     @AppStorage(Prefs.simpleMode) private var simpleMode = true
     @AppStorage(Prefs.keepAwake) private var keepAwake = true
+    @AppStorage(Prefs.hideDetails) private var hideDetails = false
+    @AppStorage(Prefs.appearance) private var appearance = 0
+    @AppStorage(Prefs.tutorialDone) private var tutorialDone = false
+    @State private var lockMethod: String?
 
     @State private var authStatus: UNAuthorizationStatus = .notDetermined
     @State private var exporting = false
@@ -27,6 +31,43 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 if let me = store.active { profileSection(me) }
+
+                Section {
+                    Picker("Wygląd", selection: $appearance) {
+                        Text("Automatyczny").tag(0)
+                        Text("Jasny").tag(1)
+                        Text("Ciemny").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                } header: {
+                    Text("🎨 Wygląd")
+                } footer: {
+                    Text("Automatyczny dopasowuje się do ustawień iPhone’a.")
+                }
+
+                Section {
+                    if let lockMethod {
+                        Toggle("Chroń plan: \(lockMethod)", isOn: Binding(
+                            get: { store.active?.locked ?? false },
+                            set: { on in
+                                Task {
+                                    if !(await Lock.shared.setLocked(on, store: store)) {
+                                        message = "Nie udało się potwierdzić tożsamości."
+                                    }
+                                }
+                            }
+                        ))
+                    } else {
+                        Text("Żeby chronić plan, ustaw najpierw kod w iPhonie (Ustawienia → Face ID i kod).")
+                            .foregroundStyle(Theme.muted)
+                    }
+                    Toggle("Ukryj nazwy zadań w powiadomieniach", isOn: $hideDetails)
+                } header: {
+                    Text("🔒 Prywatność")
+                } footer: {
+                    Text("Chroniony plan otworzysz tylko swoim Face ID lub kodem – także po przełączeniu profilu. Po minucie w tle aplikacja znowu się blokuje.")
+                }
 
                 Section {
                     Toggle("Powiadomienia", isOn: Binding(get: { notifyOn && authStatus == .authorized }, set: setNotify))
@@ -68,11 +109,12 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Button("Pokaż instrukcję") { tutorialDone = false }
                     Button("Zapisz kopię zapasową") { exporting = true }
                     Button("Wczytaj kopię (także z wersji web)") { importing = true }
                     Button("Przywróć plan startowy", role: .destructive) { confirmReset = true }
                 } header: {
-                    Text("💾 Dane")
+                    Text("💾 Dane i pomoc")
                 } footer: {
                     Text("Plan jest zapisany tylko na tym iPhonie. Kopia zapasowa i przywracanie dotyczą aktywnego profilu.")
                 }
@@ -82,11 +124,15 @@ struct SettingsView: View {
             .navigationTitle("Ustawienia")
             .environment(\.locale, Locale(identifier: "pl_PL"))
         }
-        .task { authStatus = await NotificationManager.shared.authorizationStatus() }
+        .task {
+            authStatus = await NotificationManager.shared.authorizationStatus()
+            lockMethod = Lock.shared.methodName
+        }
         .onChange(of: lead) { store.refreshNotifications() }
         .onChange(of: morningOn) { store.refreshNotifications() }
         .onChange(of: morningMinutes) { store.refreshNotifications() }
         .onChange(of: startReminder) { store.refreshNotifications() }
+        .onChange(of: hideDetails) { store.refreshNotifications() }
         .fileExporter(isPresented: $exporting, document: BackupDocument(data: store.backupData()),
                       contentType: .json, defaultFilename: "planowanie-kopia-\(Day.today)") { result in
             if case .success = result { message = "Kopia zapisana" }
