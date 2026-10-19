@@ -1,4 +1,4 @@
-name: iOS – kompilacja
+name: iOS i Mac – kompilacja
 
 on:
   push:
@@ -8,14 +8,23 @@ on:
 jobs:
   build:
     runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: iPhone
+            destination: generic/platform=iOS Simulator
+          - name: Mac
+            destination: generic/platform=macOS,variant=Mac Catalyst
+    name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
       - name: Wygeneruj projekt Xcode
         run: brew install xcodegen && cd ios && xcodegen generate
-      - name: Zbuduj na symulator
+      - name: Zbuduj
         run: |
           cd ios
           xcodebuild -project Planowanie.xcodeproj -scheme Planowanie \
-            -destination 'generic/platform=iOS Simulator' -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO build | tail -n 60
+            -destination '${{ matrix.destination }}' -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO build | tail -n 40
           exit ${PIPESTATUS[0]}

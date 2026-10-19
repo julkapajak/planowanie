@@ -1,0 +1,74 @@
+name: Wyślij do App Store Connect (iPhone i Mac)
+
+# Uruchamiane ręcznie: Actions → „Wyślij do App Store Connect” → Run workflow.
+# Wymaga sekretów repo: APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (opis w ios/README.md).
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: iPhone
+            destination: generic/platform=iOS
+          - name: Mac
+            destination: generic/platform=macOS,variant=Mac Catalyst
+    name: ${{ matrix.name }}
+    env:
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sprawdź sekrety
+        env:
+          KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          for v in TEAM_ID KEY_ID ISSUER_ID KEY_P8; do
+            [ -n "${!v}" ] || { echo "::error::Brak sekretu dla $v – zobacz ios/README.md"; exit 1; }
+          done
+          printf '%s\n' "$KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Wygeneruj projekt Xcode
+        run: brew install xcodegen && cd ios && xcodegen generate
+
+      - name: Archiwizuj
+        run: |
+          cd ios
+          xcodebuild archive -project Planowanie.xcodeproj -scheme Planowanie \
+            -destination '${{ matrix.destination }}' -configuration Release \
+            -archivePath "$RUNNER_TEMP/Planowanie.xcarchive" \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID" | tail -n 40
+          exit ${PIPESTATUS[0]}
+
+      - name: Wyślij do App Store Connect
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Planowanie.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID" | tail -n 40
+          exit ${PIPESTATUS[0]}
+
+      - name: Usuń klucz
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"

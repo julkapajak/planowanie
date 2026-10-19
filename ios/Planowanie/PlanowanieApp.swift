@@ -41,5 +41,13 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { store.refreshNotifications() }
         }
+        #if targetEnvironment(macCatalyst)
+        .onAppear {
+            // Na Macu: rozsądny rozmiar okna, jak wysoki notes.
+            for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+                scene.sizeRestrictions?.minimumSize = CGSize(width: 420, height: 640)
+            }
+        }
+        #endif
     }
 }

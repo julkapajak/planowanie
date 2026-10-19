@@ -43,6 +43,7 @@ function renderHeader() {
   const T = tasksOn(selected), done = T.filter((t) => t.done).length;
   const pct = T.length ? Math.round((done / T.length) * 100) : 0;
   $("ringFg").style.strokeDashoffset = String(119.4 * (1 - pct / 100));
+  $("ringFg").style.opacity = pct ? "1" : "0";
   $("ringTxt").textContent = `${pct}%`;
   $("ring").hidden = view === "settings";
 }
@@ -151,6 +152,7 @@ function renderSettings() {
   $("notifyHint").textContent =
     p === "unsupported" ? "Ta przeglądarka nie obsługuje powiadomień. Na iPhonie dodaj aplikację do ekranu początkowego i otwórz ją stamtąd – albo użyj eksportu do kalendarza poniżej."
     : p === "denied" ? "Powiadomienia są zablokowane w ustawieniach przeglądarki. Odblokuj je dla tej strony albo użyj eksportu do kalendarza."
+    : isDesktop ? "Przypomnienia przychodzą, dopóki aplikacja działa – także po zamknięciu okna (ikona w zasobniku / na pasku menu). W menu ikony możesz włączyć uruchamianie przy starcie komputera."
     : "Przypomnienia przychodzą, gdy aplikacja jest otwarta lub działa w tle. Żeby mieć 100% pewności przy zamkniętej aplikacji, dodaj też plan do kalendarza.";
 }
 
@@ -225,7 +227,9 @@ $("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) $("sh
 
 // ---------- powiadomienia ----------
 let swReg = null;
-if ("serviceWorker" in navigator) {
+const isDesktop = !!window.desktop;
+if (isDesktop) document.documentElement.classList.add("desktop");
+if ("serviceWorker" in navigator && !isDesktop) {
   navigator.serviceWorker.register("sw.js").then((r) => { swReg = r; }).catch(() => {});
 }
 function notifPermission() { return "Notification" in window ? Notification.permission : "unsupported"; }
@@ -243,11 +247,17 @@ async function enableNotifications() {
 async function notify(title, body, tag) {
   if (notifPermission() !== "granted") return;
   const opts = { body, tag, icon: "icon-192.png", badge: "icon-192.png", lang: "pl", renotify: !!tag };
+  if (!isDesktop) {
+    try {
+      // `ready` nigdy się nie rozwiąże bez service workera, więc czekamy najwyżej sekundę.
+      const reg = swReg || (await Promise.race([navigator.serviceWorker?.ready, new Promise((r) => setTimeout(r, 1000))]));
+      if (reg) return reg.showNotification(title, opts);
+    } catch {}
+  }
   try {
-    const reg = swReg || (await navigator.serviceWorker?.ready);
-    if (reg) return reg.showNotification(title, opts);
+    const n = new Notification(title, opts);
+    n.onclick = () => (window.desktop ? window.desktop.show() : window.focus());
   } catch {}
-  try { new Notification(title, opts); } catch {}
 }
 
 function checkReminders() {

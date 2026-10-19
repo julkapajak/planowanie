@@ -43,6 +43,8 @@ struct DayView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 96)
+                .frame(maxWidth: 640)
+                .frame(maxWidth: .infinity)
             }
             .scrollIndicators(.hidden)
         }

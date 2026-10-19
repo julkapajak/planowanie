@@ -201,3 +201,6 @@ h1 { font-family: var(--f-disp); font-weight: 600; font-size: 1.65rem; margin: 2
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* aplikacja na komputer (Electron) */
+.desktop .web-only { display: none; }

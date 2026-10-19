@@ -1,0 +1,52 @@
+{
+  "name": "planowanie",
+  "productName": "Planowanie",
+  "version": "1.0.0",
+  "description": "Spokojny planer dnia z przypomnieniami – wersja na Linuksa",
+  "author": "julkapajak",
+  "homepage": "https://github.com/julkapajak/planowanie",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "copy-web": "node scripts/copy-web.mjs",
+    "start": "npm run copy-web && electron .",
+    "dist:linux": "npm run copy-web && electron-builder --linux --publish never"
+  },
+  "build": {
+    "appId": "com.julkapajak.planowanie.desktop",
+    "productName": "Planowanie",
+    "files": [
+      "main.js",
+      "preload.js",
+      "web/**/*"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Office",
+      "icon": "build/icon.png",
+      "synopsis": "Spokojny planer dnia z przypomnieniami",
+      "artifactName": "Planowanie-linux-${arch}.${ext}",
+      "maintainer": "julkapajak <julkapajak@users.noreply.github.com>"
+    },
+    "deb": {
+      "packageName": "planowanie"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "julkapajak",
+      "repo": "planowanie"
+    }
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
+  }
+}

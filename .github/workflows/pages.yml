@@ -3,7 +3,7 @@ name: Publikacja na GitHub Pages
 on:
   push:
     branches: [main, claude/focused-hamilton-ocf757]
-    paths-ignore: ["ios/**", ".github/workflows/ios.yml"]
+    paths-ignore: ["ios/**", "desktop/**", ".github/workflows/ios.yml", ".github/workflows/app-store.yml", ".github/workflows/linux.yml"]
   workflow_dispatch:
 
 permissions:
@@ -27,7 +27,7 @@ jobs:
         with:
           enablement: true
       - name: Przygotuj pliki
-        run: mkdir _site && cp index.html styles.css app.js data.js sw.js manifest.webmanifest icon.svg icon-*.png _site/
+        run: mkdir _site && cp index.html privacy.html styles.css app.js data.js sw.js manifest.webmanifest icon.svg icon-*.png _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

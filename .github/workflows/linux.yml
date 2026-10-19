@@ -1,0 +1,37 @@
+name: Linux – aplikacja do pobrania
+
+on:
+  push:
+    branches: [main, claude/focused-hamilton-ocf757]
+    paths: ["desktop/**", "index.html", "styles.css", "app.js", "data.js", "icon*", ".github/workflows/linux.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Zbuduj AppImage i .deb
+        run: cd desktop && npm ci && npm run dist:linux
+      - name: Opublikuj w Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: linux-v1.0.${{ github.run_number }}
+          name: Planowanie na Linuksa 1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            **Planowanie na Linuksa**
+            - `Planowanie-linux-x86_64.AppImage` – działa na każdej dystrybucji: pobierz, nadaj prawo uruchamiania i otwórz.
+            - `Planowanie-linux-amd64.deb` – dla Ubuntu/Debiana: `sudo apt install ./Planowanie-linux-amd64.deb`.
+          files: |
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb

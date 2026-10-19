@@ -1,14 +1,31 @@
 # Planowanie
 
-Spokojny planer dnia z przypomnieniami: aplikacja webowa (PWA), którą można dodać do ekranu głównego telefonu.
+Spokojny planer dnia z przypomnieniami. Zawiera plan startowy do końca 2026 roku: ATPL, PAR, mechanika, Stanford, western, siłownia.
 
-- **Dzień**: oś czasu z zadaniami, karta „Teraz / Następne”, odhaczanie z postępem dnia.
-- **Tydzień**: przegląd tygodnia i postęp każdego dnia.
-- **Przypomnienia**: powiadomienia X minut przed zadaniem i poranne podsumowanie dnia.
-- **Kalendarz**: eksport całego planu do `.ics` z alarmami. To najpewniejsze przypomnienia, bo działają też przy zamkniętej aplikacji.
-- Dodawanie, edycja i usuwanie zadań (także co tydzień), kopia zapasowa JSON, działanie offline.
+| Wersja | Skąd pobrać | Kod |
+|---|---|---|
+| **iPhone, iPad i Mac** | App Store / TestFlight, instrukcja w [`ios/README.md`](ios/README.md) | `ios/` (SwiftUI) |
+| **Linux** | [Releases](https://github.com/julkapajak/planowanie/releases/latest): `.AppImage` albo `.deb` | `desktop/` (Electron) |
+| **Przeglądarka** | https://julkapajak.github.io/planowanie/ | katalog główny |
 
-Plan startowy (17.10–31.12.2026) jest w `data.js`. Dane zapisują się lokalnie na urządzeniu.
+Wszystkie wersje mają te same funkcje:
+- **Dzień**: oś czasu, karta „Teraz / Następne”, odhaczanie z postępem dnia.
+- **Tydzień**: przegląd tygodnia.
+- **Przypomnienia** przed zadaniami i poranne podsumowanie dnia.
+- Dodawanie i edycja zadań (także co tydzień).
+- Kopia zapasowa JSON, którą można przenosić między wersjami.
 
-Publikacja: GitHub Actions → GitHub Pages (`.github/workflows/pages.yml`).
-Lokalnie: `python3 -m http.server` i otwórz `http://localhost:8000`.
+Dane zapisują się tylko na urządzeniu ([polityka prywatności](https://julkapajak.github.io/planowanie/privacy.html)).
+
+## Linux
+
+- **AppImage**: pobierz, kliknij prawym → Właściwości → „Zezwól na uruchamianie”, a potem otwórz.
+- **Ubuntu/Debian**: `sudo apt install ./Planowanie-linux-amd64.deb`
+
+Zamknięcie okna chowa aplikację do zasobnika, a przypomnienia dalej przychodzą. W menu ikony możesz włączyć „Uruchamiaj przy starcie komputera”.
+
+Lokalnie: `cd desktop && npm install && npm start`.
+
+## Przeglądarka
+
+`python3 -m http.server` w katalogu głównym, potem otwórz `http://localhost:8000`. Na GitHub Pages strona publikuje się sama po każdym pushu.

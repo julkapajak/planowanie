@@ -52,6 +52,8 @@ struct WeekView: View {
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
         .background(Theme.bg.ignoresSafeArea())
