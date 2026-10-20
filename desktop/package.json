@@ -58,7 +58,8 @@
       "icon": "build/icon.png",
       "identity": "-",
       "artifactName": "Planowanie-mac.${ext}",
-      "minimumSystemVersion": "11.0"
+      "minimumSystemVersion": "11.0",
+      "hardenedRuntime": false
     },
     "dmg": {
       "title": "Planowanie",
