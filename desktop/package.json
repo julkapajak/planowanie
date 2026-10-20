@@ -1,8 +1,8 @@
 {
   "name": "planowanie",
   "productName": "Planowanie",
-  "version": "1.0.0",
-  "description": "Spokojny planer dnia z przypomnieniami – wersja na Linuksa",
+  "version": "1.1.0",
+  "description": "Planowanie – spokojny planer dnia (Mac i Linux)",
   "author": "julkapajak",
   "homepage": "https://github.com/julkapajak/planowanie",
   "license": "UNLICENSED",
@@ -11,7 +11,8 @@
   "scripts": {
     "copy-web": "node scripts/copy-web.mjs",
     "start": "npm run copy-web && electron .",
-    "dist:linux": "npm run copy-web && electron-builder --linux --publish never"
+    "dist:linux": "npm run copy-web && electron-builder --linux --publish never",
+    "dist:mac": "npm run copy-web && electron-builder --mac --publish never"
   },
   "build": {
     "appId": "com.julkapajak.planowanie.desktop",
@@ -43,6 +44,25 @@
       "provider": "github",
       "owner": "julkapajak",
       "repo": "planowanie"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "identity": "-",
+      "artifactName": "Planowanie-mac.${ext}",
+      "minimumSystemVersion": "11.0"
+    },
+    "dmg": {
+      "title": "Planowanie",
+      "artifactName": "Planowanie-mac.${ext}"
     }
   },
   "devDependencies": {

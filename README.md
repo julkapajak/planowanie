@@ -1,32 +1,27 @@
 # Planowanie
 
-Spokojny planer dnia z przypomnieniami. Zawiera plan startowy do końca 2026 roku: ATPL, PAR, mechanika, Stanford, western, siłownia.
+Spokojny planer dnia z przypomnieniami, przyjazny dla osób z ADHD.
 
-| Wersja | Skąd pobrać | Kod |
+**Strona:** https://julkapajak.github.io/planowanie/ (konto, pobieranie aplikacji i wersja w przeglądarce)
+
+| Wersja | Skąd | Kod |
 |---|---|---|
-| **iPhone** | projekt Xcode, uruchomienie na symulatorze: [`ios/README.md`](ios/README.md) | `ios/` (SwiftUI) |
-| **Mac** | następny krok | – |
-| **Linux** | [Releases](https://github.com/julkapajak/planowanie/releases/latest): `.AppImage` albo `.deb` | `desktop/` (Electron) |
-| **Przeglądarka** | https://julkapajak.github.io/planowanie/ | katalog główny |
+| **Przeglądarka** | https://julkapajak.github.io/planowanie/app/ | `app/` |
+| **macOS** | [Planowanie-mac.dmg](https://github.com/julkapajak/planowanie/releases/latest/download/Planowanie-mac.dmg) | `desktop/` (Electron, ładuje `app/`) |
+| **Linux** | [AppImage](https://github.com/julkapajak/planowanie/releases/latest/download/Planowanie-linux-x86_64.AppImage) · [.deb](https://github.com/julkapajak/planowanie/releases/latest/download/Planowanie-linux-amd64.deb) | `desktop/` |
+| **iPhone** | na razie z Xcode: [`ios/README.md`](ios/README.md) | `ios/` (SwiftUI) |
 
-Wszystkie wersje mają te same funkcje:
-- **Dzień**: oś czasu, karta „Teraz / Następne”, odhaczanie z postępem dnia.
-- **Tydzień**: przegląd tygodnia.
-- **Przypomnienia** przed zadaniami i poranne podsumowanie dnia.
-- Dodawanie i edycja zadań (także co tydzień).
-- Kopia zapasowa JSON, którą można przenosić między wersjami.
+## Konta
 
-Dane zapisują się tylko na urządzeniu ([polityka prywatności](https://julkapajak.github.io/planowanie/privacy.html)).
+Logowanie e-mailem i hasłem. Plan zapisuje się na koncie (Supabase) i jest taki sam w przeglądarce, na Macu i na Linuksie. Bez konta aplikacja działa tylko na danym urządzeniu.
+Konfiguracja serwera: [`supabase/README.md`](supabase/README.md). Klucze wpisuje się w `app/config.js`.
 
-## Linux
+## Struktura
 
-- **AppImage**: pobierz, kliknij prawym → Właściwości → „Zezwól na uruchamianie”, a potem otwórz.
-- **Ubuntu/Debian**: `sudo apt install ./Planowanie-linux-amd64.deb`
+- `index.html`, `site.css`: strona główna z pobieraniem
+- `app/`: aplikacja (plan, przypomnienia, konto, synchronizacja: `cloud.js`)
+- `desktop/`: aplikacja na komputer. GitHub Actions buduje `.dmg`, `.AppImage` i `.deb` i publikuje je w Releases (`.github/workflows/desktop.yml`).
+- `ios/`: aplikacja na iPhone'a
+- `supabase/schema.sql`: tabela planów z regułami dostępu (każdy widzi tylko swój plan)
 
-Zamknięcie okna chowa aplikację do zasobnika, a przypomnienia dalej przychodzą. W menu ikony możesz włączyć „Uruchamiaj przy starcie komputera”.
-
-Lokalnie: `cd desktop && npm install && npm start`.
-
-## Przeglądarka
-
-`python3 -m http.server` w katalogu głównym, potem otwórz `http://localhost:8000`. Na GitHub Pages strona publikuje się sama po każdym pushu.
+Lokalnie: `python3 -m http.server`, potem otwórz `http://localhost:8000`. Aplikacja na komputer: `cd desktop && npm install && npm start`.

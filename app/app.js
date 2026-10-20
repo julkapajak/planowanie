@@ -1,6 +1,9 @@
-import { CATS, HOLIDAYS, PLAN_END, buildSeed, gymWeekLabel, iso, parseDate } from "./data.js";
+import { DEFAULT_CATS, FALLBACK_CAT, iso, parseDate, starterTasks } from "./data.js";
+import * as cloud from "./cloud.js";
 
-const KEY = "planowanie.v1";
+const LOCAL_KEY = "planowanie.v1";          // plan bez konta
+const userKey = (id) => `planowanie.v1:${id}`; // plan konta (kopia na tym urządzeniu)
+const DEVICE_KEY = "planowanie.device";     // ustawienia tego urządzenia
 const DOW_SHORT = ["nd", "pn", "wt", "śr", "cz", "pt", "sb"];
 const DOW = ["Niedziela", "Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota"];
 const MON = ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"];
@@ -9,17 +12,43 @@ const CHEERS = ["Brawo! ✨", "Jedno z głowy 💪", "Tak trzymaj!", "Pięknie i
 const $ = (id) => document.getElementById(id);
 
 // ---------- stan ----------
-let state = load();
-function load() {
-  try {
-    const s = JSON.parse(localStorage.getItem(KEY));
-    if (s && Array.isArray(s.tasks)) return { settings: defaults(), notified: {}, ...s, settings: { ...defaults(), ...s.settings } };
-  } catch {}
-  return { tasks: buildSeed(), settings: defaults(), notified: {} };
+// state: plan (zadania + kategorie) – synchronizowany z kontem.
+// device: ustawienia tego urządzenia (powiadomienia, wygląd) – nie są synchronizowane.
+let user = null;
+let storageKey = LOCAL_KEY;
+let state = freshPlan();
+let device = loadDevice();
+let CATS = DEFAULT_CATS;
+const cat = (k) => CATS[k] || FALLBACK_CAT;
+
+function freshPlan() { return { tasks: starterTasks(), cats: { ...DEFAULT_CATS }, notified: {} }; }
+function normalize(s) {
+  if (!s || !Array.isArray(s.tasks)) return null;
+  return { notified: {}, ...s, cats: { ...DEFAULT_CATS, ...(s.cats || {}) } };
 }
-function defaults() { return { notify: false, lead: 10, morning: "07:30", bannerDismissed: false }; }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
-save();
+function readJSON(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
+function loadDevice() {
+  const d = readJSON(DEVICE_KEY) || {};
+  // starsze wersje trzymały ustawienia razem z planem
+  const legacy = readJSON(LOCAL_KEY)?.settings || {};
+  return { notify: false, lead: 10, morning: "07:30", bannerDismissed: false, theme: "auto", localOnly: false, ...legacy, ...d };
+}
+function saveDevice() { try { localStorage.setItem(DEVICE_KEY, JSON.stringify(device)); } catch {} }
+function usePlan(s, key) {
+  state = normalize(s) || freshPlan();
+  storageKey = key;
+  CATS = state.cats;
+  saveLocal();
+  fillCategories();
+}
+/** Zapis tylko na urządzeniu (np. które powiadomienia już wysłano). */
+function saveLocal() { try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch {} }
+/** Zmiana planu: zapis na urządzeniu i – z kontem – wysłanie na serwer. */
+function save() {
+  if (user) state.dirty = true;
+  saveLocal();
+  if (user) schedulePush();
+}
 
 const todayIso = () => iso(new Date());
 let selected = todayIso();
@@ -36,7 +65,9 @@ const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&l
 // ---------- widok dnia ----------
 function renderHeader() {
   const h = new Date().getHours();
-  $("greet").textContent = h < 5 ? "Dobranoc 🌙" : h < 12 ? "Dzień dobry ☀️" : h < 18 ? "Miłego popołudnia 🌤" : "Dobry wieczór 🌙";
+  const name = user?.user_metadata?.name;
+  const hello = h < 5 ? "Dobranoc" : h < 12 ? "Dzień dobry" : h < 18 ? "Miłego popołudnia" : "Dobry wieczór";
+  $("greet").textContent = `${hello}${name ? `, ${name}` : ""} ${h < 5 || h >= 18 ? "🌙" : h < 12 ? "☀️" : "🌤"}`;
   const d = parseDate(selected);
   const rel = selected === todayIso() ? "Dziś" : selected === addDays(todayIso(), 1) ? "Jutro" : selected === addDays(todayIso(), -1) ? "Wczoraj" : DOW[d.getDay()];
   $("title").textContent = view === "day" ? `${rel}, ${d.getDate()} ${MON[d.getMonth()]}` : view === "week" ? "Twój tydzień" : "Ustawienia";
@@ -58,7 +89,7 @@ function renderStrip() {
     b.type = "button"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", s === selected);
     b.className = (s === t ? "today " : "") + (s < t ? "past" : "");
     const cats = [...new Set(T.map((x) => x.cat))].slice(0, 4);
-    b.innerHTML = `<span class="dw">${DOW_SHORT[d.getDay()]}</span><span class="dn">${d.getDate()}</span><span class="dots">${cats.map((c) => `<i style="background:${CATS[c]?.color}"></i>`).join("")}</span>`;
+    b.innerHTML = `<span class="dw">${DOW_SHORT[d.getDay()]}</span><span class="dn">${d.getDate()}</span><span class="dots">${cats.map((c) => `<i style="background:${cat(c).color}"></i>`).join("")}</span>`;
     b.onclick = () => { selected = s; render(); };
     strip.appendChild(b);
   }
@@ -84,12 +115,12 @@ function renderNextCard() {
   }
   const t = cur || next;
   if (!t) { card.hidden = true; return; }
-  const c = CATS[t.cat]?.color || "#888";
+  const c = cat(t.cat).color || "#888";
   card.hidden = false;
   card.style.background = `linear-gradient(135deg, ${c}, color-mix(in srgb, ${c} 70%, #000))`;
   const left = cur ? toMin(t.time) + t.dur - m : toMin(t.time) - m;
   const when = cur ? `jeszcze ${durTxt(left)}` : left < 60 ? `za ${left} min` : `o ${t.time} · za ${durTxt(left)}`;
-  card.innerHTML = `<div class="k">${cur ? "Teraz" : "Następne"}</div><div class="t">${CATS[t.cat]?.icon || ""} ${escapeHtml(t.title)}</div><div class="m">${when}</div>`;
+  card.innerHTML = `<div class="k">${cur ? "Teraz" : "Następne"}</div><div class="t">${cat(t.cat).icon || ""} ${escapeHtml(t.title)}</div><div class="m">${when}</div>`;
 }
 
 function renderTimeline() {
@@ -100,7 +131,7 @@ function renderTimeline() {
   T.forEach((t, i) => {
     const li = document.createElement("li");
     li.className = "task" + (t.done ? " done" : "") + (cur && cur.id === t.id ? " now" : "");
-    li.style.setProperty("--c", CATS[t.cat]?.color || "#888");
+    li.style.setProperty("--c", cat(t.cat).color || "#888");
     li.style.animationDelay = `${i * 30}ms`;
     li.innerHTML = `
       <div class="tm">${t.time}<small>${durTxt(t.dur)}</small></div>
@@ -127,15 +158,14 @@ function toggle(t) {
 function renderWeek() {
   const start = startOfWeek(selected), box = $("week"); box.innerHTML = "";
   const end = new Date(start); end.setDate(end.getDate() + 6);
-  const label = gymWeekLabel(iso(start));
-  $("weekTitle").textContent = `${start.getDate()} ${MON[start.getMonth()].slice(0, 3)} – ${end.getDate()} ${MON[end.getMonth()].slice(0, 3)}${label ? ` · ${label}` : ""}`;
+  $("weekTitle").textContent = `${start.getDate()} ${MON[start.getMonth()].slice(0, 3)} – ${end.getDate()} ${MON[end.getMonth()].slice(0, 3)}`;
   for (let i = 0; i < 7; i++) {
     const d = new Date(start); d.setDate(d.getDate() + i);
     const s = iso(d), T = tasksOn(s), done = T.filter((t) => t.done).length;
     const el = document.createElement("div");
     el.className = "wday" + (s === todayIso() ? " today" : "");
-    el.innerHTML = `<div class="wday-h"><b>${DOW[d.getDay()]} <span>${d.getDate()} ${MON[d.getMonth()].slice(0, 3)}${HOLIDAYS[s] ? ` · ${HOLIDAYS[s]}` : ""}</span></b><span>${done}/${T.length}</span></div>
-      <div class="chips">${T.filter((t) => t.cat !== "food").map((t) => `<span class="chip${t.done ? " done" : ""}" style="--c:${CATS[t.cat]?.color}">${t.time} ${escapeHtml(t.title.split(" – ")[0])}</span>`).join("") || '<span class="chip" style="--c:#6F8FA6">wolne</span>'}</div>
+    el.innerHTML = `<div class="wday-h"><b>${DOW[d.getDay()]} <span>${d.getDate()} ${MON[d.getMonth()].slice(0, 3)}</span></b><span>${done}/${T.length}</span></div>
+      <div class="chips">${T.map((t) => `<span class="chip${t.done ? " done" : ""}" style="--c:${cat(t.cat).color}">${t.time} ${escapeHtml(t.title.split(" – ")[0])}</span>`).join("") || '<span class="chip" style="--c:#6F8FA6">wolne</span>'}</div>
       <div class="bar"><i style="width:${T.length ? (done / T.length) * 100 : 0}%"></i></div>`;
     el.onclick = () => { selected = s; setView("day"); };
     box.appendChild(el);
@@ -144,7 +174,7 @@ function renderWeek() {
 
 // ---------- ustawienia ----------
 function renderSettings() {
-  const st = state.settings;
+  const st = device;
   $("setNotify").checked = st.notify && notifPermission() === "granted";
   $("setLead").value = String(st.lead);
   $("setMorning").value = st.morning;
@@ -212,7 +242,7 @@ $("taskForm").addEventListener("submit", (e) => {
     do {
       state.tasks.push({ ...data, date: s, id: `u${Date.now().toString(36)}${n}`, done: false });
       s = addDays(s, 7); n++;
-    } while (f.repeat.checked && s <= PLAN_END);
+    } while (f.repeat.checked && n < 12);
     toast(n > 1 ? `Dodano ${n} powtórzeń` : "Dodano zadanie");
   }
   save(); $("sheet").close(); selected = data.date; render();
@@ -228,6 +258,7 @@ $("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) $("sh
 // ---------- powiadomienia ----------
 let swReg = null;
 const isDesktop = !!window.desktop;
+const saveSettings = saveDevice;
 if (isDesktop) document.documentElement.classList.add("desktop");
 if ("serviceWorker" in navigator && !isDesktop) {
   navigator.serviceWorker.register("sw.js").then((r) => { swReg = r; }).catch(() => {});
@@ -237,7 +268,7 @@ function notifPermission() { return "Notification" in window ? Notification.perm
 async function enableNotifications() {
   if (notifPermission() === "unsupported") { toast("Brak obsługi powiadomień – użyj kalendarza"); setView("settings"); return false; }
   const p = await Notification.requestPermission();
-  state.settings.notify = p === "granted"; save();
+  device.notify = p === "granted"; saveSettings();
   if (p === "granted") { toast("Przypomnienia włączone 🔔"); notify("Gotowe! 🔔", "Będę przypominać o zadaniach przed czasem."); checkReminders(); }
   else toast("Bez zgody nie mogę wysyłać powiadomień");
   render();
@@ -261,7 +292,7 @@ async function notify(title, body, tag) {
 }
 
 function checkReminders() {
-  const st = state.settings;
+  const st = device;
   if (!st.notify || notifPermission() !== "granted") return;
   const now = new Date(), s = iso(now), m = now.getHours() * 60 + now.getMinutes();
   let changed = false;
@@ -270,7 +301,7 @@ function checkReminders() {
   const mk = `morning-${s}`;
   if (st.morning && m >= toMin(st.morning) && m < toMin(st.morning) + 120 && !state.notified[mk]) {
     const T = tasksOn(s);
-    const main = T.filter((t) => t.cat !== "food").map((t) => `${t.time} ${t.title.split(" – ")[0]}`);
+    const main = T.map((t) => `${t.time} ${t.title.split(" – ")[0]}`);
     notify(`Dzień dobry! Dziś ${T.length} ${T.length === 1 ? "zadanie" : T.length < 5 ? "zadania" : "zadań"} ☀️`, main.join(" · ") || "Spokojny dzień", mk);
     state.notified[mk] = 1; changed = true;
   }
@@ -281,7 +312,7 @@ function checkReminders() {
     if (m >= start - st.lead && m < start + 10) {
       const left = start - m;
       const when = left > 0 ? `Za ${left} min` : "Teraz";
-      notify(`${CATS[t.cat]?.icon || "⏰"} ${when}: ${t.title}`, `${t.time}–${fmtMin(start + t.dur)}${t.note ? ` · ${t.note}` : ""}`, t.id);
+      notify(`${cat(t.cat).icon || "⏰"} ${when}: ${t.title}`, `${t.time}–${fmtMin(start + t.dur)}${t.note ? ` · ${t.note}` : ""}`, t.id);
       toast(`${when}: ${t.title}`);
       state.notified[t.id] = 1; changed = true;
     }
@@ -291,25 +322,25 @@ function checkReminders() {
     const d = k.startsWith("morning-") ? k.slice(8) : k.slice(0, 10);
     if (/^\d{4}-\d\d-\d\d$/.test(d) && d < addDays(s, -3)) { delete state.notified[k]; changed = true; }
   }
-  if (changed) save();
+  if (changed) saveLocal();
 }
 
 function renderBanner() {
-  const show = !state.settings.bannerDismissed && notifPermission() === "default" && !state.settings.notify;
+  const show = !device.bannerDismissed && notifPermission() === "default" && !device.notify;
   $("notifyBanner").hidden = !show;
 }
 $("bannerOn").onclick = () => enableNotifications();
-$("bannerLater").onclick = () => { state.settings.bannerDismissed = true; save(); render(); };
+$("bannerLater").onclick = () => { device.bannerDismissed = true; saveSettings(); render(); };
 
 $("setNotify").onchange = async (e) => {
   if (e.target.checked) { if (!(await enableNotifications())) e.target.checked = false; }
-  else { state.settings.notify = false; save(); toast("Przypomnienia wyłączone"); }
+  else { device.notify = false; saveSettings(); toast("Przypomnienia wyłączone"); }
 };
-$("setLead").onchange = (e) => { state.settings.lead = Number(e.target.value); save(); };
-$("setMorning").onchange = (e) => { state.settings.morning = e.target.value; save(); };
+$("setLead").onchange = (e) => { device.lead = Number(e.target.value); saveSettings(); };
+$("setMorning").onchange = (e) => { device.morning = e.target.value; saveSettings(); };
 $("testNotify").onclick = async () => {
   if (notifPermission() !== "granted" && !(await enableNotifications())) return;
-  notify("✈︎ Za 10 min: ATPL EASA", "Tak będą wyglądały przypomnienia 🙂", "test");
+  notify("⏰ Za 10 min: Twoje zadanie", "Tak będą wyglądały przypomnienia 🙂", "test");
 };
 
 // ---------- eksport ----------
@@ -330,7 +361,7 @@ function fold(line) {
 }
 
 $("exportIcs").onclick = () => {
-  const from = todayIso(), lead = state.settings.lead;
+  const from = todayIso(), lead = device.lead;
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
   const L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Planowanie//PL", "CALSCALE:GREGORIAN", "X-WR-CALNAME:Planowanie"];
   const T = state.tasks.filter((t) => t.date >= from && !t.done).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
@@ -338,9 +369,9 @@ $("exportIcs").onclick = () => {
     const s = toMin(t.time);
     L.push("BEGIN:VEVENT", `UID:${t.id}@planowanie`, `DTSTAMP:${stamp}`,
       `DTSTART:${icsDT(t.date, s)}`, `DTEND:${s + t.dur >= 1440 ? icsDT(addDays(t.date, 1), s + t.dur - 1440) : icsDT(t.date, s + t.dur)}`,
-      fold(`SUMMARY:${icsEsc(`${CATS[t.cat]?.icon || ""} ${t.title}`.trim())}`),
+      fold(`SUMMARY:${icsEsc(`${cat(t.cat).icon || ""} ${t.title}`.trim())}`),
       ...(t.note ? [fold(`DESCRIPTION:${icsEsc(t.note)}`)] : []),
-      `CATEGORIES:${icsEsc(CATS[t.cat]?.name || "Inne")}`,
+      `CATEGORIES:${icsEsc(cat(t.cat).name || "Inne")}`,
       "BEGIN:VALARM", "ACTION:DISPLAY", fold(`DESCRIPTION:${icsEsc(t.title)}`), `TRIGGER:-PT${lead}M`, "END:VALARM",
       "END:VEVENT");
   }
@@ -348,19 +379,22 @@ $("exportIcs").onclick = () => {
   download("planowanie.ics", L.join("\r\n") + "\r\n", "text/calendar");
   toast(`Wyeksportowano ${T.length} wydarzeń 📅`);
 };
-$("exportJson").onclick = () => download(`planowanie-kopia-${todayIso()}.json`, JSON.stringify(state, null, 1), "application/json");
+$("exportJson").onclick = () => download(`planowanie-kopia-${todayIso()}.json`,
+  JSON.stringify({ version: 2, cats: state.cats, tasks: state.tasks }, null, 1), "application/json");
 $("importJson").onchange = async (e) => {
   const file = e.target.files[0]; if (!file) return;
   try {
-    const s = JSON.parse(await file.text());
-    if (!Array.isArray(s.tasks)) throw 0;
-    state = { notified: {}, ...s, settings: { ...defaults(), ...s.settings } }; save(); toast("Wczytano kopię"); render();
-  } catch { toast("To nie jest poprawna kopia"); }
-  e.target.value = "";
+    const s = normalize(JSON.parse(await file.text()));
+    if (!s) throw 0;
+    if (state.tasks.length && !confirm(`Zastąpić obecny plan planem z pliku (${s.tasks.length} zadań)?`)) return;
+    state.tasks = s.tasks; state.cats = s.cats; state.notified = {};
+    CATS = state.cats; fillCategories(); save(); toast("Wczytano plan 📥"); render();
+  } catch { toast("To nie jest poprawna kopia planu"); }
+  finally { e.target.value = ""; }
 };
 $("resetPlan").onclick = () => {
-  if (!confirm("Przywrócić plan startowy? Twoje zmiany i odhaczenia zostaną usunięte.")) return;
-  state.tasks = buildSeed(); state.notified = {}; save(); toast("Przywrócono plan"); render();
+  if (!confirm("Usunąć wszystkie zadania z planu? Tego nie da się cofnąć.")) return;
+  state.tasks = []; state.notified = {}; save(); toast("Plan wyczyszczony"); render();
 };
 
 // ---------- drobiazgi ----------
@@ -391,16 +425,15 @@ function confetti() {
 }
 
 // ---------- start ----------
-$("catSelect").innerHTML = Object.entries(CATS).map(([k, c]) => `<option value="${k}">${c.icon} ${c.name}</option>`).join("");
-$("legend").innerHTML = Object.values(CATS).map((c) => `<span><i style="background:${c.color}"></i>${c.name}</span>`).join("");
+function fillCategories() {
+  $("catSelect").innerHTML = Object.entries(CATS).map(([k, c]) => `<option value="${k}">${c.icon} ${escapeHtml(c.name)}</option>`).join("");
+  $("legend").innerHTML = Object.values(CATS).map((c) => `<span><i style="background:${c.color}"></i>${escapeHtml(c.name)}</span>`).join("");
+}
 document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => setView(b.dataset.view)));
 $("fab").onclick = () => openSheet();
 const shift = (n) => { selected = addDays(selected, n); render(); };
 $("prevWeek").onclick = $("prevWeek2").onclick = () => shift(-7);
 $("nextWeek").onclick = $("nextWeek2").onclick = () => shift(7);
-
-const params = new URLSearchParams(location.search);
-if (params.get("view")) setView(params.get("view")); else render();
 
 let lastDay = todayIso();
 setInterval(() => {
@@ -408,5 +441,224 @@ setInterval(() => {
   if (todayIso() !== lastDay) { if (selected === lastDay) selected = todayIso(); lastDay = todayIso(); }
   if (view === "day" && !$("sheet").open) { renderHeader(); renderNextCard(); }
 }, 20000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { checkReminders(); render(); } });
-checkReminders();
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  checkReminders();
+  render();
+  if (user) pullNow();
+});
+
+// ---------- wygląd ----------
+function applyTheme() {
+  if (device.theme === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = device.theme;
+  document.querySelectorAll("#themeSeg button").forEach((b) => b.setAttribute("aria-checked", b.dataset.theme === device.theme));
+  document.querySelectorAll("#themeSeg button").forEach((b) => b.setAttribute("aria-selected", b.dataset.theme === device.theme));
+}
+document.querySelectorAll("#themeSeg button").forEach((b) => (b.onclick = () => { device.theme = b.dataset.theme; saveSettings(); applyTheme(); }));
+
+// ---------- konto i synchronizacja ----------
+const EMAIL_RE = /^\S+@\S+\.\S+$/;
+let pushTimer = null;
+let syncState = "ok"; // ok | pending | offline | error
+
+function setSync(st) {
+  syncState = st;
+  const el = $("syncStatus");
+  el.className = "sync" + (st === "offline" ? " off" : st === "error" ? " err" : "");
+  el.textContent = {
+    ok: "Plan zapisany na koncie",
+    pending: "Zapisuję…",
+    offline: "Brak internetu – zapiszę, gdy wróci",
+    error: "Nie udało się zapisać – spróbuję ponownie",
+  }[st];
+}
+
+function schedulePush() {
+  setSync("pending");
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushNow, 1200);
+}
+
+/** Wysyła plan na konto – tylko gdy na tym urządzeniu coś się zmieniło (albo `force` dla nowego konta). */
+async function pushNow(force = false) {
+  if (!user || (!state.dirty && !force)) return;
+  clearTimeout(pushTimer);
+  const payload = { version: 2, cats: state.cats, tasks: state.tasks };
+  try {
+    state.syncedAt = await cloud.push(user.id, payload);
+    state.dirty = false;
+    saveLocal();
+    setSync("ok");
+  } catch {
+    setSync(navigator.onLine ? "error" : "offline");
+    pushTimer = setTimeout(pushNow, 30000);
+  }
+}
+
+/** Pobiera plan z konta, jeśli inne urządzenie go zmieniło. */
+async function pullNow() {
+  if (!user) return;
+  try {
+    const remote = await cloud.pull(user.id);
+    if (!remote) { await pushNow(true); return; }
+    if (remote.updated_at === state.syncedAt) { if (state.dirty) await pushNow(); return; }
+    // zmiany z tego urządzenia, których serwer jeszcze nie ma, są nowsze – wygrywa ostatni zapis
+    if (state.dirty) { await pushNow(); return; }
+    usePlan({ ...remote.data, syncedAt: remote.updated_at, dirty: false }, userKey(user.id));
+    render();
+    setSync("ok");
+  } catch {
+    setSync(navigator.onLine ? "error" : "offline");
+  }
+}
+
+/** Po zalogowaniu: plan z konta, a jeśli konto jest nowe – plan z tego urządzenia. */
+async function signedIn(u) {
+  user = u;
+  device.localOnly = false; saveSettings();
+  const cached = normalize(readJSON(userKey(u.id)));
+  let remote;
+  try { remote = await cloud.pull(u.id); } catch { remote = undefined; }
+
+  if (remote) {
+    const offlineEdits = cached?.dirty && cached.syncedAt === remote.updated_at;
+    usePlan(offlineEdits ? cached : { ...remote.data, syncedAt: remote.updated_at, dirty: false }, userKey(u.id));
+    if (offlineEdits) pushNow(); else setSync("ok");
+  } else if (remote === null) {
+    // nowe konto: zabierz plan z tego urządzenia (sprzed logowania) albo zacznij od przykładowego
+    usePlan(cached || readJSON(LOCAL_KEY) || freshPlan(), userKey(u.id));
+    await pushNow(true);
+  } else {
+    usePlan(cached || freshPlan(), userKey(u.id));
+    setSync("offline");
+  }
+  hideAuth();
+  renderAccount();
+  render();
+}
+
+function signedOut() {
+  user = null;
+  usePlan(readJSON(LOCAL_KEY), LOCAL_KEY);
+  renderAccount();
+  render();
+  if (cloud.cloudEnabled) showAuth();
+}
+
+function renderAccount() {
+  $("accountCard").hidden = !cloud.cloudEnabled;
+  $("accountIn").hidden = !user;
+  $("accountOut").hidden = !!user;
+  if (user) {
+    $("accName").textContent = user.user_metadata?.name || "Twoje konto";
+    $("accEmail").textContent = user.email || "";
+    setSync(syncState);
+  }
+  $("dataHint").textContent = user
+    ? "Plan zapisuje się na Twoim koncie i jest taki sam na każdym urządzeniu. Kopia zapasowa to dodatkowo plik na dysku."
+    : "Plan zapisuje się tylko na tym urządzeniu. Kopia zapasowa to plik, który przeniesiesz na inne.";
+}
+
+// --- ekran logowania ---
+let authMode = "in";
+function showAuth(mode = authMode) {
+  setAuthMode(mode);
+  $("auth").hidden = false;
+  setTimeout(() => $("authForm").email.focus(), 50);
+}
+function hideAuth() { $("auth").hidden = true; authMsg(""); }
+function setAuthMode(mode) {
+  authMode = mode;
+  const up = mode === "up";
+  $("tabIn").setAttribute("aria-selected", !up);
+  $("tabUp").setAttribute("aria-selected", up);
+  $("nameRow").hidden = !up;
+  $("authSubmit").textContent = up ? "Załóż konto" : "Zaloguj się";
+  $("authForm").password.autocomplete = up ? "new-password" : "current-password";
+  $("forgot").hidden = up;
+  authMsg("");
+}
+function authMsg(text, ok = false) {
+  const el = $("authMsg");
+  el.textContent = text;
+  el.classList.toggle("ok", ok);
+}
+
+$("tabIn").onclick = () => setAuthMode("in");
+$("tabUp").onclick = () => setAuthMode("up");
+$("authForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const email = f.email.value.trim(), password = f.password.value, name = f.name.value.trim();
+  if (!EMAIL_RE.test(email)) return authMsg("Wpisz poprawny adres e-mail.");
+  if (password.length < 8) return authMsg("Hasło musi mieć co najmniej 8 znaków.");
+  const btn = $("authSubmit");
+  btn.disabled = true;
+  try {
+    if (authMode === "up") {
+      const r = await cloud.signUp(email, password, name);
+      if (r.needsConfirmation) {
+        setAuthMode("in");
+        f.email.value = email;
+        authMsg("Prawie gotowe! Wysłaliśmy e-mail – kliknij link, a potem zaloguj się tutaj.", true);
+      } else {
+        await signedIn(r.user);
+        toast("Konto założone 🎉");
+      }
+    } else {
+      await signedIn(await cloud.signIn(email, password));
+      toast("Zalogowano 👋");
+    }
+  } catch (err) {
+    authMsg(cloud.friendlyError(err));
+  } finally {
+    btn.disabled = false;
+  }
+});
+$("forgot").onclick = async () => {
+  const email = $("authForm").email.value.trim();
+  if (!EMAIL_RE.test(email)) return authMsg("Wpisz najpierw swój e-mail powyżej.");
+  try {
+    await cloud.resetPassword(email);
+    authMsg("Wysłaliśmy link do ustawienia nowego hasła.", true);
+  } catch (err) {
+    authMsg(cloud.friendlyError(err));
+  }
+};
+$("localOnly").onclick = () => { device.localOnly = true; saveSettings(); hideAuth(); renderAccount(); };
+$("openAuth").onclick = () => showAuth("up");
+$("signOutBtn").onclick = async () => {
+  if (state.dirty) await pushNow();
+  await cloud.signOut();
+  signedOut();
+  toast("Wylogowano");
+};
+$("syncNow").onclick = async () => { setSync("pending"); await pullNow(); if (syncState === "pending") setSync("ok"); };
+
+cloud.onAuthChange(async (event, u) => {
+  if (event === "PASSWORD_RECOVERY") {
+    const pass = prompt("Wpisz nowe hasło (co najmniej 8 znaków):");
+    if (pass && pass.length >= 8) {
+      try { await cloud.setNewPassword(pass); toast("Hasło zmienione ✓"); } catch (err) { alert(cloud.friendlyError(err)); }
+    }
+  }
+  if (event === "SIGNED_IN" && u && !user) await signedIn(u);
+});
+setInterval(() => { if (user && !document.hidden) pullNow(); }, 60000);
+window.addEventListener("online", () => { if (user) pushNow(); });
+
+// --- uruchomienie ---
+async function boot() {
+  applyTheme();
+  usePlan(readJSON(LOCAL_KEY), LOCAL_KEY);
+  const params = new URLSearchParams(location.search);
+  if (params.get("view")) setView(params.get("view")); else render();
+  renderAccount();
+  checkReminders();
+  if (!cloud.cloudEnabled) return;
+  const u = await cloud.currentUser();
+  if (u) await signedIn(u);
+  else if (!device.localOnly || location.hash.startsWith("#konto")) showAuth(location.hash === "#konto-nowe" ? "up" : "in");
+}
+boot();

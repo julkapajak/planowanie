@@ -3,154 +3,117 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Planowanie</title>
-  <meta name="description" content="Spokojny planer dnia z przypomnieniami">
-  <meta name="theme-color" content="#F6F1EA" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#16141A" media="(prefers-color-scheme: dark)">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Planowanie">
-  <link rel="manifest" href="manifest.webmanifest">
+  <title>Planowanie – spokojny plan dnia</title>
+  <meta name="description" content="Planowanie: spokojny planer dnia z przypomnieniami, przyjazny dla osób z ADHD. Konto, synchronizacja i aplikacja na Maca i Linuksa.">
+  <meta name="theme-color" content="#F6F1EA">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="site.css">
 </head>
 <body>
-  <div class="app">
-    <header class="top">
-      <div>
-        <p class="greet" id="greet">Dzień dobry</p>
-        <h1 id="title">Dziś</h1>
-      </div>
-      <div class="ring" id="ring" aria-label="Postęp dnia">
-        <svg viewBox="0 0 44 44" aria-hidden="true">
-          <circle cx="22" cy="22" r="19" class="ring-bg"/>
-          <circle cx="22" cy="22" r="19" class="ring-fg" id="ringFg"/>
-        </svg>
-        <span id="ringTxt">0%</span>
-      </div>
-    </header>
-
-    <main>
-      <section id="view-day" class="view">
-        <div class="strip-nav">
-          <button class="icon-btn" id="prevWeek" type="button" aria-label="Poprzedni tydzień">‹</button>
-          <div class="strip" id="strip" role="tablist" aria-label="Dni tygodnia"></div>
-          <button class="icon-btn" id="nextWeek" type="button" aria-label="Następny tydzień">›</button>
-        </div>
-        <div id="notifyBanner" class="banner" hidden>
-          <span>🔔 Włączyć przypomnienia przed każdym zadaniem?</span>
-          <button class="pill primary" id="bannerOn" type="button">Włącz</button>
-          <button class="pill ghost" id="bannerLater" type="button">Później</button>
-        </div>
-        <div id="nextCard" class="next-card" hidden></div>
-        <ol class="timeline" id="timeline"></ol>
-        <p class="empty" id="empty" hidden>Wolny dzień. Odpocznij 🌿</p>
-      </section>
-
-      <section id="view-week" class="view" hidden>
-        <div class="strip-nav">
-          <button class="icon-btn" id="prevWeek2" type="button" aria-label="Poprzedni tydzień">‹</button>
-          <h2 class="week-title" id="weekTitle"></h2>
-          <button class="icon-btn" id="nextWeek2" type="button" aria-label="Następny tydzień">›</button>
-        </div>
-        <div class="week" id="week"></div>
-        <div class="legend" id="legend"></div>
-      </section>
-
-      <section id="view-settings" class="view" hidden>
-        <div class="card">
-          <h2>🔔 Przypomnienia</h2>
-          <label class="row">
-            <span>Powiadomienia w aplikacji</span>
-            <input type="checkbox" id="setNotify" class="switch">
-          </label>
-          <label class="row">
-            <span>Ile minut wcześniej</span>
-            <select id="setLead">
-              <option value="0">o czasie</option>
-              <option value="5">5 min</option>
-              <option value="10">10 min</option>
-              <option value="15">15 min</option>
-              <option value="30">30 min</option>
-            </select>
-          </label>
-          <label class="row">
-            <span>Poranne podsumowanie dnia</span>
-            <input type="time" id="setMorning">
-          </label>
-          <p class="hint" id="notifyHint"></p>
-          <button class="pill" id="testNotify" type="button">Wyślij testowe powiadomienie</button>
-        </div>
-
-        <div class="card">
-          <h2>📅 Eksport do kalendarza</h2>
-          <p class="hint">Najpewniejsze przypomnienia, nawet gdy aplikacja jest zamknięta: pobierz plik i dodaj wszystkie wydarzenia do kalendarza (iPhone: „Dodaj wszystkie”, Google Kalendarz: Importuj). Każde wydarzenie ma alarm ustawiony powyżej.</p>
-          <button class="pill primary" id="exportIcs" type="button">Pobierz plan do kalendarza (.ics)</button>
-        </div>
-
-        <div class="card">
-          <h2>💾 Dane</h2>
-          <p class="hint">Plan zapisuje się na tym urządzeniu. Kopia zapasowa przenosi go na inne.</p>
-          <div class="btns">
-            <button class="pill" id="exportJson" type="button">Zapisz kopię</button>
-            <label class="pill" for="importJson">Wczytaj kopię</label>
-            <input type="file" id="importJson" accept="application/json" hidden>
-            <button class="pill danger" id="resetPlan" type="button">Przywróć plan startowy</button>
-          </div>
-        </div>
-        <p class="hint center web-only">Wskazówka: dodaj aplikację do ekranu głównego (Udostępnij → „Do ekranu początkowego”), żeby działała jak zwykła aplikacja.</p>
-      </section>
-    </main>
-
-    <button class="fab" id="fab" type="button" aria-label="Dodaj zadanie">+</button>
-
-    <nav class="tabs" aria-label="Widoki">
-      <button type="button" data-view="day" aria-current="page"><span>☀︎</span>Dzień</button>
-      <button type="button" data-view="week"><span>▦</span>Tydzień</button>
-      <button type="button" data-view="settings"><span>⚙︎</span>Ustawienia</button>
+  <header class="nav">
+    <a class="brand" href="./"><img src="icon.svg" alt="" width="32" height="32">Planowanie</a>
+    <nav>
+      <a href="#pobierz">Pobierz</a>
+      <a class="btn small" href="app/#konto">Zaloguj się</a>
     </nav>
-  </div>
+  </header>
 
-  <dialog id="sheet" class="sheet">
-    <form method="dialog" id="taskForm">
-      <h2 id="sheetTitle">Nowe zadanie</h2>
-      <label>Nazwa<input name="title" required maxlength="120" autocomplete="off"></label>
-      <div class="grid2">
-        <label>Dzień<input name="date" type="date" required></label>
-        <label>Godzina<input name="time" type="time" required></label>
+  <main>
+    <section class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Planer dnia · przyjazny dla ADHD</p>
+        <h1>Spokojny plan dnia,<br>bez przytłoczenia.</h1>
+        <p class="lead">Widzisz tylko to, co ważne teraz. Przypomnienia przychodzą na czas, a plan masz na każdym urządzeniu po zalogowaniu.</p>
+        <div class="cta">
+          <a class="btn primary" href="app/#konto-nowe">Załóż darmowe konto</a>
+          <a class="btn" href="#pobierz">Pobierz aplikację</a>
+        </div>
+        <p class="note">Bez reklam i śledzenia. Twój plan widzisz tylko Ty.</p>
       </div>
-      <div class="grid2">
-        <label>Czas trwania
-          <select name="dur">
-            <option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option>
-            <option value="45">45 min</option><option value="60">1 h</option><option value="75">1 h 15 min</option>
-            <option value="90">1 h 30 min</option><option value="120">2 h</option><option value="180">3 h</option>
-            <option value="240">4 h</option>
-          </select>
-        </label>
-        <label>Kategoria<select name="cat" id="catSelect"></select></label>
+      <div class="hero-art" aria-hidden="true">
+        <div class="phone">
+          <div class="p-greet">Dzień dobry ☀️</div>
+          <div class="p-title">Dziś, 20 października</div>
+          <div class="p-next"><small>NASTĘPNE</small><b>📚 Skupienie – 50 min</b><span>za 25 min</span></div>
+          <div class="p-task" style="--c:#6F8FA6"><b>09:00</b>Spokojny start dnia<i class="done"></i></div>
+          <div class="p-task" style="--c:#4F7BD9"><b>10:00</b>Skupienie – 50 min<i></i></div>
+          <div class="p-task" style="--c:#4C9F3A"><b>16:00</b>Spacer<i></i></div>
+        </div>
       </div>
-      <label>Notatka<textarea name="note" rows="2" maxlength="400"></textarea></label>
-      <label class="row" id="repeatRow">
-        <span>Powtarzaj co tydzień do końca planu</span>
-        <input type="checkbox" name="repeat" class="switch">
-      </label>
-      <div class="sheet-actions">
-        <button type="button" class="pill danger" id="delBtn">Usuń</button>
-        <span class="spacer"></span>
-        <button type="button" class="pill ghost" id="cancelBtn">Anuluj</button>
-        <button type="submit" class="pill primary" value="save">Zapisz</button>
-      </div>
-    </form>
-  </dialog>
+    </section>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <canvas id="confetti" aria-hidden="true"></canvas>
+    <section class="features" aria-label="Co potrafi aplikacja">
+      <article><span>☀️</span><h2>Dzień w skrócie</h2><p>Oś czasu dnia z kartą „Teraz / Następne”. Odhaczasz jednym dotknięciem i widzisz postęp.</p></article>
+      <article><span>🔔</span><h2>Przypomnienia</h2><p>Przed każdym zadaniem i rano z podsumowaniem dnia, także gdy okno aplikacji jest zamknięte.</p></article>
+      <article><span>☁️</span><h2>Jedno konto, wszędzie</h2><p>Zaloguj się na komputerze i w przeglądarce, a plan będzie wszędzie ten sam.</p></article>
+      <article><span>🔒</span><h2>Prywatnie</h2><p>Nikt poza Tobą nie widzi Twojego planu. Bez reklam i analityki.</p></article>
+      <article><span>🌙</span><h2>Jasny i ciemny</h2><p>Wygląd dopasowany do systemu albo wybrany przez Ciebie.</p></article>
+      <article><span>📅</span><h2>Do kalendarza</h2><p>Jednym kliknięciem przeniesiesz plan do kalendarza w telefonie, z alarmami.</p></article>
+    </section>
 
-  <script type="module" src="app.js"></script>
+    <section class="download" id="pobierz">
+      <h2>Pobierz aplikację</h2>
+      <p class="lead">Zainstaluj i zaloguj się tym samym kontem, a Twój plan od razu się pojawi.</p>
+      <div class="dl-grid">
+        <article class="dl" data-os="mac">
+          <span class="dl-icon">💻</span>
+          <h3>macOS</h3>
+          <p>Apple Silicon i Intel, macOS 11 lub nowszy</p>
+          <a class="btn primary" href="https://github.com/julkapajak/planowanie/releases/latest/download/Planowanie-mac.dmg">Pobierz dla Maca (.dmg)</a>
+          <details>
+            <summary>Jak zainstalować?</summary>
+            <ol>
+              <li>Otwórz pobrany plik i przeciągnij <b>Planowanie</b> do folderu <b>Aplikacje</b>.</li>
+              <li>Uruchom aplikację. Jeśli macOS ostrzeże, że nie może jej sprawdzić, wejdź w <b>Ustawienia systemowe → Prywatność i ochrona</b> i kliknij <b>„Otwórz mimo to”</b>.</li>
+            </ol>
+          </details>
+        </article>
+        <article class="dl" data-os="linux">
+          <span class="dl-icon">🐧</span>
+          <h3>Linux</h3>
+          <p>Każda dystrybucja (AppImage) albo Ubuntu / Debian (.deb)</p>
+          <a class="btn primary" href="https://github.com/julkapajak/planowanie/releases/latest/download/Planowanie-linux-x86_64.AppImage">Pobierz AppImage</a>
+          <a class="btn" href="https://github.com/julkapajak/planowanie/releases/latest/download/Planowanie-linux-amd64.deb">Pobierz .deb</a>
+          <details>
+            <summary>Jak zainstalować?</summary>
+            <ol>
+              <li><b>AppImage:</b> kliknij plik prawym przyciskiem → Właściwości → „Zezwól na uruchamianie”, potem otwórz.</li>
+              <li><b>.deb:</b> <code>sudo apt install ./Planowanie-linux-amd64.deb</code></li>
+            </ol>
+          </details>
+        </article>
+        <article class="dl" data-os="ios">
+          <span class="dl-icon">📱</span>
+          <h3>iPhone</h3>
+          <p>Aplikacja z trybem skupienia i małymi krokami</p>
+          <span class="btn disabled" aria-disabled="true">Wkrótce w App Store</span>
+        </article>
+        <article class="dl" data-os="web">
+          <span class="dl-icon">🌐</span>
+          <h3>Przeglądarka</h3>
+          <p>Bez instalowania, na każdym urządzeniu</p>
+          <a class="btn primary" href="app/">Otwórz w przeglądarce</a>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Planowanie · <a href="privacy.html">Prywatność</a> · <a href="https://github.com/julkapajak/planowanie">Kod źródłowy</a></p>
+  </footer>
+
+  <script>
+    // Wyróżnij wersję dla systemu, na którym ktoś ogląda stronę.
+    (function () {
+      var ua = navigator.userAgent || "";
+      var os = /iPhone|iPad|iPod/.test(ua) ? "ios" : /Mac/.test(ua) ? "mac" : /Linux|X11/.test(ua) && !/Android/.test(ua) ? "linux" : "web";
+      var card = document.querySelector('.dl[data-os="' + os + '"]');
+      if (card) { card.classList.add("yours"); card.parentNode.insertBefore(card, card.parentNode.firstChild); }
+    })();
+  </script>
 </body>
 </html>

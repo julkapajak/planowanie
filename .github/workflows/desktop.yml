@@ -1,0 +1,73 @@
+name: Aplikacja na komputer (Mac i Linux)
+
+# Buduje aplikację na Maca (.dmg) i Linuksa (.AppImage, .deb) i publikuje je
+# w zakładce Releases. Strona pobierania linkuje do „latest”, więc zawsze daje najnowszą wersję.
+on:
+  push:
+    branches: [main, claude/focused-hamilton-ocf757]
+    paths: ["desktop/**", "app/**", "icon*", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+            script: dist:linux
+            files: |
+              desktop/dist/*.AppImage
+              desktop/dist/*.deb
+          - name: mac
+            os: macos-15
+            script: dist:mac
+            files: desktop/dist/*.dmg
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Zbuduj
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: cd desktop && npm ci && npm run ${{ matrix.script }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Opublikuj w Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.${{ github.run_number }}
+          name: Planowanie 1.1.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            **Planowanie na komputer** – pobierz ze strony https://julkapajak.github.io/planowanie/#pobierz
+            - `Planowanie-mac.dmg` – macOS (Apple Silicon i Intel)
+            - `Planowanie-linux-x86_64.AppImage` – każda dystrybucja Linuksa
+            - `Planowanie-linux-amd64.deb` – Ubuntu / Debian
+          files: dist/*

@@ -15,12 +15,18 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #16141A; --paper: #201D25; --fg: #F1ECF3; --muted: #9D94A3; --line: #302B36;
     --accent: #F29B80; --accent-soft: #3A2A28; --accent-ink: #1D1210;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #16141A; --paper: #201D25; --fg: #F1ECF3; --muted: #9D94A3; --line: #302B36;
+  --accent: #F29B80; --accent-soft: #3A2A28; --accent-ink: #1D1210;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -204,3 +210,28 @@ h1 { font-family: var(--f-disp); font-weight: 600; font-size: 1.65rem; margin: 2
 
 /* aplikacja na komputer (Electron) */
 .desktop .web-only { display: none; }
+
+/* przełącznik segmentowy (wygląd, logowanie / nowe konto) */
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; background: var(--bg); border-radius: 999px; border: 1px solid var(--line); }
+.seg button { border: 0; background: transparent; border-radius: 999px; padding: 8px 10px; font-weight: 700; font-size: .9rem; cursor: pointer; color: var(--muted); }
+.seg button[aria-selected="true"] { background: var(--paper); color: var(--fg); box-shadow: var(--shadow); }
+
+/* ekran logowania */
+.auth { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; display: grid; place-items: center;
+  padding: calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 24px); }
+.auth-card { width: min(420px, 100%); background: var(--paper); border-radius: 24px; box-shadow: var(--shadow); padding: 28px 22px; display: grid; gap: 14px; }
+.auth-logo { width: 64px; height: 64px; justify-self: center; border-radius: 16px; }
+.auth h1 { text-align: center; margin: 0; }
+.auth form { display: grid; gap: 12px; }
+.auth label { display: grid; gap: 4px; font-weight: 700; font-size: .85rem; color: var(--muted); }
+.auth input { border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 11px 12px; color: var(--fg); font-weight: 600; width: 100%; }
+.auth-msg { margin: 0; min-height: 1.2em; font-size: .9rem; font-weight: 600; color: #C8453F; }
+.auth-msg.ok { color: var(--ok); }
+.pill.big { padding: 12px 18px; font-size: 1rem; width: 100%; }
+.link { border: 0; background: none; color: var(--accent); font-weight: 700; cursor: pointer; padding: 4px; }
+.link.muted { color: var(--muted); font-weight: 600; font-size: .9rem; }
+.account-name { font-weight: 800; margin: 0; }
+.sync { display: inline-flex; align-items: center; gap: 6px; }
+.sync::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.sync.off::before { background: var(--muted); }
+.sync.err::before { background: #C8453F; }

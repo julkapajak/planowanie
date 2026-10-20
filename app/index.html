@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Planowanie</title>
+  <meta name="description" content="Spokojny planer dnia z przypomnieniami">
+  <meta name="theme-color" content="#F6F1EA" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16141A" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Planowanie">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="../icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div>
+        <p class="greet" id="greet">Dzień dobry</p>
+        <h1 id="title">Dziś</h1>
+      </div>
+      <div class="ring" id="ring" aria-label="Postęp dnia">
+        <svg viewBox="0 0 44 44" aria-hidden="true">
+          <circle cx="22" cy="22" r="19" class="ring-bg"/>
+          <circle cx="22" cy="22" r="19" class="ring-fg" id="ringFg"/>
+        </svg>
+        <span id="ringTxt">0%</span>
+      </div>
+    </header>
+
+    <main>
+      <section id="view-day" class="view">
+        <div class="strip-nav">
+          <button class="icon-btn" id="prevWeek" type="button" aria-label="Poprzedni tydzień">‹</button>
+          <div class="strip" id="strip" role="tablist" aria-label="Dni tygodnia"></div>
+          <button class="icon-btn" id="nextWeek" type="button" aria-label="Następny tydzień">›</button>
+        </div>
+        <div id="notifyBanner" class="banner" hidden>
+          <span>🔔 Włączyć przypomnienia przed każdym zadaniem?</span>
+          <button class="pill primary" id="bannerOn" type="button">Włącz</button>
+          <button class="pill ghost" id="bannerLater" type="button">Później</button>
+        </div>
+        <div id="nextCard" class="next-card" hidden></div>
+        <ol class="timeline" id="timeline"></ol>
+        <p class="empty" id="empty" hidden>Wolny dzień. Odpocznij 🌿</p>
+      </section>
+
+      <section id="view-week" class="view" hidden>
+        <div class="strip-nav">
+          <button class="icon-btn" id="prevWeek2" type="button" aria-label="Poprzedni tydzień">‹</button>
+          <h2 class="week-title" id="weekTitle"></h2>
+          <button class="icon-btn" id="nextWeek2" type="button" aria-label="Następny tydzień">›</button>
+        </div>
+        <div class="week" id="week"></div>
+        <div class="legend" id="legend"></div>
+      </section>
+
+      <section id="view-settings" class="view" hidden>
+        <div class="card" id="accountCard" hidden>
+          <h2>👤 Konto</h2>
+          <div id="accountIn" hidden>
+            <p class="account-name" id="accName"></p>
+            <p class="hint" id="accEmail"></p>
+            <p class="hint"><span class="sync" id="syncStatus">Zsynchronizowano</span></p>
+            <div class="btns">
+              <button class="pill" id="syncNow" type="button">Synchronizuj teraz</button>
+              <button class="pill" id="signOutBtn" type="button">Wyloguj się</button>
+            </div>
+          </div>
+          <div id="accountOut" hidden>
+            <p class="hint">Plan jest zapisany tylko na tym urządzeniu. Załóż konto, żeby mieć go też na komputerze i telefonie.</p>
+            <button class="pill primary" id="openAuth" type="button">Zaloguj się / załóż konto</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>🎨 Wygląd</h2>
+          <div class="seg" id="themeSeg" role="radiogroup" aria-label="Wygląd">
+            <button type="button" data-theme="auto" role="radio">Automatyczny</button>
+            <button type="button" data-theme="light" role="radio">Jasny</button>
+            <button type="button" data-theme="dark" role="radio">Ciemny</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>🔔 Przypomnienia</h2>
+          <label class="row">
+            <span>Powiadomienia w aplikacji</span>
+            <input type="checkbox" id="setNotify" class="switch">
+          </label>
+          <label class="row">
+            <span>Ile minut wcześniej</span>
+            <select id="setLead">
+              <option value="0">o czasie</option>
+              <option value="5">5 min</option>
+              <option value="10">10 min</option>
+              <option value="15">15 min</option>
+              <option value="30">30 min</option>
+            </select>
+          </label>
+          <label class="row">
+            <span>Poranne podsumowanie dnia</span>
+            <input type="time" id="setMorning">
+          </label>
+          <p class="hint" id="notifyHint"></p>
+          <button class="pill" id="testNotify" type="button">Wyślij testowe powiadomienie</button>
+        </div>
+
+        <div class="card">
+          <h2>📅 Eksport do kalendarza</h2>
+          <p class="hint">Najpewniejsze przypomnienia, nawet gdy aplikacja jest zamknięta: pobierz plik i dodaj wszystkie wydarzenia do kalendarza (iPhone: „Dodaj wszystkie”, Google Kalendarz: Importuj). Każde wydarzenie ma alarm ustawiony powyżej.</p>
+          <button class="pill primary" id="exportIcs" type="button">Pobierz plan do kalendarza (.ics)</button>
+        </div>
+
+        <div class="card">
+          <h2>💾 Dane</h2>
+          <p class="hint" id="dataHint">Kopia zapasowa to plik z całym planem – możesz go przenieść albo wczytać z niego plan.</p>
+          <div class="btns">
+            <button class="pill" id="exportJson" type="button">Zapisz kopię</button>
+            <label class="pill" for="importJson">Wczytaj kopię</label>
+            <input type="file" id="importJson" accept="application/json,.json" hidden>
+            <button class="pill danger" id="resetPlan" type="button">Wyczyść plan</button>
+          </div>
+        </div>
+        <p class="hint center web-only">Wskazówka: dodaj aplikację do ekranu głównego (Udostępnij → „Do ekranu początkowego”), żeby działała jak zwykła aplikacja.</p>
+      </section>
+    </main>
+
+    <button class="fab" id="fab" type="button" aria-label="Dodaj zadanie">+</button>
+
+    <nav class="tabs" aria-label="Widoki">
+      <button type="button" data-view="day" aria-current="page"><span>☀︎</span>Dzień</button>
+      <button type="button" data-view="week"><span>▦</span>Tydzień</button>
+      <button type="button" data-view="settings"><span>⚙︎</span>Ustawienia</button>
+    </nav>
+  </div>
+
+  <dialog id="sheet" class="sheet">
+    <form method="dialog" id="taskForm">
+      <h2 id="sheetTitle">Nowe zadanie</h2>
+      <label>Nazwa<input name="title" required maxlength="120" autocomplete="off"></label>
+      <div class="grid2">
+        <label>Dzień<input name="date" type="date" required></label>
+        <label>Godzina<input name="time" type="time" required></label>
+      </div>
+      <div class="grid2">
+        <label>Czas trwania
+          <select name="dur">
+            <option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option>
+            <option value="45">45 min</option><option value="60">1 h</option><option value="75">1 h 15 min</option>
+            <option value="90">1 h 30 min</option><option value="120">2 h</option><option value="180">3 h</option>
+            <option value="240">4 h</option>
+          </select>
+        </label>
+        <label>Kategoria<select name="cat" id="catSelect"></select></label>
+      </div>
+      <label>Notatka<textarea name="note" rows="2" maxlength="400"></textarea></label>
+      <label class="row" id="repeatRow">
+        <span>Powtarzaj co tydzień (12 tygodni)</span>
+        <input type="checkbox" name="repeat" class="switch">
+      </label>
+      <div class="sheet-actions">
+        <button type="button" class="pill danger" id="delBtn">Usuń</button>
+        <span class="spacer"></span>
+        <button type="button" class="pill ghost" id="cancelBtn">Anuluj</button>
+        <button type="submit" class="pill primary" value="save">Zapisz</button>
+      </div>
+    </form>
+  </dialog>
+
+  <section id="auth" class="auth" hidden>
+    <div class="auth-card">
+      <img src="../icon.svg" alt="" class="auth-logo">
+      <h1>Planowanie</h1>
+      <p class="hint center" id="authLead">Zaloguj się, żeby mieć swój plan na każdym urządzeniu.</p>
+      <div class="seg" role="tablist" aria-label="Logowanie lub nowe konto">
+        <button type="button" role="tab" id="tabIn" aria-selected="true">Logowanie</button>
+        <button type="button" role="tab" id="tabUp" aria-selected="false">Nowe konto</button>
+      </div>
+      <form id="authForm" novalidate>
+        <label id="nameRow" hidden>Imię<input name="name" autocomplete="given-name" maxlength="40"></label>
+        <label>E-mail<input name="email" type="email" required autocomplete="email"></label>
+        <label>Hasło<input name="password" type="password" required minlength="8" autocomplete="current-password"></label>
+        <p class="auth-msg" id="authMsg" role="alert"></p>
+        <button class="pill primary big" type="submit" id="authSubmit">Zaloguj się</button>
+      </form>
+      <button class="link" id="forgot" type="button">Nie pamiętasz hasła?</button>
+      <button class="link muted" id="localOnly" type="button">Używaj bez konta – tylko na tym urządzeniu</button>
+    </div>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+
+  <script src="vendor/supabase-2.117.2.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
